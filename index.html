@@ -66,7 +66,8 @@ td.c{border-left:2px solid var(--bg)}
 <main id="haupt"></main>
 <div class="unten" id="unten"></div>
 <div id="toast"></div>
-<input type="file" id="datei" accept=".json,application/json" hidden>
+<!-- ohne accept-Filter: Android blendet heruntergeladene .json-Dateien sonst oft aus (falscher Dateityp) -->
+<input type="file" id="datei" hidden>
 <script>
 "use strict";
 /* Mein Dienstplan – Handy-App (Spec 003). Daten liegen nur auf diesem Gerät (localStorage), keine Namen im Programm. */
@@ -250,6 +251,7 @@ function startSeite() {
   $("#kopf").innerHTML = `<div class="kopf"><h1>Dienstplan</h1></div>`; $("#unten").innerHTML = "";
   $("#haupt").innerHTML = `<div class="leer karte"><h3 style="justify-content:center">Noch kein Plan auf diesem Handy</h3>
     <p>Lade die Datei, die du bekommen hast (z.&nbsp;B. <b>dienstplan-start.json</b> oder eine Sicherung).</p><button class="haupt" id="ladenBtn">Plan laden</button>
+    <p class="klein">Im Auswahlfenster findest du die Datei meist unter <b>Downloads</b> (☰ oben links im Fenster). Wurde sie per WhatsApp oder Mail geschickt, vorher dort auf die Datei tippen und speichern.</p>
     <p class="klein">Die Daten bleiben nur auf diesem Handy.</p><a class="klein" href="anleitung.html">Anleitung</a></div>`;
   $("#ladenBtn").onclick = () => $("#datei").click();
 }
@@ -411,7 +413,8 @@ async function sichern() {
 }
 $("#datei").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-  try { const o = pruefeDatei(JSON.parse(await f.text()));
+  try { let roh; try { roh = JSON.parse(await f.text()); } catch (x) { throw new Error("„" + f.name + "“ ist keine Dienstplan-Datei. Bitte dienstplan-start.json oder eine Sicherung wählen."); }
+    const o = pruefeDatei(roh);
     if (D && !confirm("Den Plan auf diesem Handy durch die Datei „" + f.name + "“ ersetzen?\nDer jetzige Stand geht dabei verloren, wenn er nicht gesichert ist.")) return;
     if (D) merken(); D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
   } catch (err) { alert("Die Datei ließ sich nicht laden: " + err.message); }
