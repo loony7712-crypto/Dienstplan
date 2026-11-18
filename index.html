@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dienstplan"><meta name="theme-color" content="#3b5b8c">
+<title>Dienstplan</title>
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f3f5f7;--card:#fff;--ink:#1d2733;--mut:#5b6575;--line:#d6dce3;--acc:#3b5b8c;--accbg:#e4ebf5;--ok:#2e7d32;--okbg:#e6f4e7;--rot:#c62828;--rotbg:#fdecea;--gelb:#9a5800;--gelbbg:#fff1dc;
+  --t1:#9dc2e6;--t12:#a9d18e;--t8:#ffd966;--t5:#f4b6d9;--u:#5bc0be;--k:#c00000;--fei:#f8cbad;--frei:#e4e6e9}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.35 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;min-height:46px}
+button.haupt{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
+button.gruen{background:#1f8b4c;color:#fff;border-color:#1f8b4c;font-weight:700}
+button:disabled{opacity:.45}
+input,select{font:inherit;font-size:17px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:var(--ink)}
+header{position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--line);padding:6px 8px;padding-top:max(6px,env(safe-area-inset-top))}
+.kopf{display:flex;align-items:center;gap:6px}
+.kopf h1{flex:1;text-align:center;font-size:19px;margin:0;white-space:nowrap}
+.kopf button{min-height:44px;min-width:44px;padding:4px 10px}
+.reiter{display:flex;gap:6px;margin-top:6px}.reiter button{flex:1;min-height:40px;padding:4px;font-size:15px}
+.reiter button.an{background:var(--accbg);border:2px solid var(--acc);color:var(--acc);font-weight:700}
+main{padding:8px;padding-bottom:150px;max-width:760px;margin:0 auto}
+.hinweis{border-radius:12px;padding:9px 12px;margin-bottom:8px;font-size:15px}
+.hinweis.gelb{background:var(--gelbbg);color:var(--gelb)}.hinweis.rot{background:var(--rotbg);color:var(--rot)}.hinweis.ok{background:var(--okbg);color:var(--ok)}
+.hinweis button{min-height:36px;padding:4px 10px;margin-left:6px;font-size:15px}
+table{width:100%;border-collapse:separate;border-spacing:0 3px;table-layout:fixed}
+td,th{padding:6px 3px;text-align:center;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+th{font-size:13px;color:var(--mut);font-weight:600;position:sticky;top:var(--kh,96px);background:var(--bg);z-index:5}
+td.dat{text-align:left;padding-left:6px;font-weight:600;width:80px;font-size:14px;background:var(--card);border-radius:8px 0 0 8px}
+td.dat small{display:block;font-weight:400;color:var(--mut);font-size:12px;white-space:normal}
+tr.zeile td:last-child{border-radius:0 8px 8px 0}
+tr.zeile td{background:var(--card)}
+tr.heute td.dat{box-shadow:inset 4px 0 0 var(--acc)}
+tr.falsch td.dat{background:var(--rotbg);color:var(--rot)}
+tr.frei td{background:var(--frei);color:var(--mut)}tr.fei td{background:var(--fei);color:#6b3f1d}
+td.c{border-left:2px solid var(--bg)}
+.T1{background:var(--t1)!important}.T12{background:var(--t12)!important}.T8{background:var(--t8)!important}.T5{background:var(--t5)!important}
+.U{background:var(--u)!important;color:#fff}.K{background:var(--k)!important;color:#fff}.F{color:var(--mut)}
+.fehlt{background:var(--rotbg)!important;color:var(--rot);font-weight:700}.doppelt{outline:2px solid var(--rot);outline-offset:-2px}
+.karte{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px}
+.karte h3{margin:0 0 6px;font-size:18px;display:flex;justify-content:space-between;gap:8px}
+.werte{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center}
+.werte div{background:var(--bg);border-radius:8px;padding:6px 2px}.werte b{display:block;font-size:18px}.werte span{font-size:12px;color:var(--mut)}
+.plus{color:var(--ok)}.minus{color:var(--rot)}
+.klein{font-size:14px;color:var(--mut)}
+.unten{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);border-top:1px solid var(--line);padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom));display:flex;gap:8px}
+.unten button{min-height:56px}.unten .gruen{flex:1;font-size:18px}
+.dlg-bg{position:fixed;inset:0;background:rgba(20,30,40,.45);z-index:100;display:flex;align-items:flex-end;justify-content:center}
+.dlg{background:var(--card);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:14px;padding-bottom:max(14px,env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+.dlg-kopf{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;font-size:19px;font-weight:600}
+.dlg-kopf button{min-height:40px;min-width:40px;padding:4px 10px}
+.dlg-fuss{display:flex;gap:8px;margin-top:12px}.dlg-fuss button{flex:1}
+.pers{margin-bottom:10px}.pers .n{font-size:15px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between}
+.codes{display:flex;gap:5px;flex-wrap:wrap}.codes button{flex:1;min-width:52px;min-height:44px;padding:4px;font-size:16px;font-weight:600}
+.codes button.an{border:3px solid var(--ink)}
+.feld{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--mut);margin-bottom:10px}
+.zwei{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.menue{display:flex;flex-direction:column;gap:8px}.menue button{text-align:left}
+.status{font-size:15px;border-radius:10px;padding:8px 10px;margin:4px 0 10px}
+.leer{text-align:center;padding:40px 16px}.leer button{margin-top:12px;width:100%}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1d2733;color:#fff;padding:10px 16px;border-radius:12px;z-index:200;font-size:15px;display:none;max-width:90%}
+</style></head><body>
+<header id="kopf"></header>
+<main id="haupt"></main>
+<div class="unten" id="unten"></div>
+<div id="toast"></div>
+<input type="file" id="datei" accept=".json,application/json" hidden>
+<script>
+"use strict";
+/* Mein Dienstplan – Handy-App (Spec 003). Daten liegen nur auf diesem Gerät (localStorage), keine Namen im Programm. */
+const SPEICHER = "mein-dienstplan";
+const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const WT = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+const TOUREN = [1, 5, 8, 12];
+let D = null;                 // alle Daten
+let ansicht = "touren";       // touren | personen | stunden
+let jahr, monat;              // angezeigter Monat (monat 0–11)
+let rueck = [];               // Rückgängig-Stapel
+
+/* ---------- Hilfen ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, "0");
+const iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const ausIso = s => { const [y, m, t] = s.split("-").map(Number); return new Date(y, m - 1, t); };
+const kurzDat = d => pad(d.getDate()) + "." + pad(d.getMonth() + 1) + ".";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const zahl = v => { const r = Math.round(v * 10) / 10; return (r > 0 ? "+" : "") + String(r).replace(".", ","); };
+const zahlOhne = v => String(Math.round(v * 10) / 10).replace(".", ",");
+function toast(t) { const e = $("#toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toast.z); toast.z = setTimeout(() => e.style.display = "none", 2800); }
+function tageImMonat(y, m) { const a = []; const n = new Date(y, m + 1, 0).getDate(); for (let t = 1; t <= n; t++) a.push(new Date(y, m, t)); return a; }
+
+/* ---------- Feiertage Brandenburg ---------- */
+const feiCache = {};
+function ostern(y) { const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3),
+  h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+  mon = Math.floor((h + l - 7 * m + 114) / 31), tag = ((h + l - 7 * m + 114) % 31) + 1; return new Date(y, mon - 1, tag); }
+function feiertage(y) {
+  if (feiCache[y]) return feiCache[y];
+  const o = ostern(y), plus = n => { const d = new Date(o); d.setDate(d.getDate() + n); return iso(d); };
+  const f = {}; f[y + "-01-01"] = "Neujahr"; f[plus(-2)] = "Karfreitag"; f[plus(0)] = "Ostersonntag"; f[plus(1)] = "Ostermontag"; f[y + "-05-01"] = "Tag der Arbeit";
+  f[plus(39)] = "Himmelfahrt"; f[plus(49)] = "Pfingstsonntag"; f[plus(50)] = "Pfingstmontag"; f[y + "-10-03"] = "Tag der Deutschen Einheit"; f[y + "-10-31"] = "Reformationstag";
+  f[y + "-12-25"] = "1. Weihnachtstag"; f[y + "-12-26"] = "2. Weihnachtstag";
+  return feiCache[y] = f;
+}
+const feiertag = d => feiertage(d.getFullYear())[iso(d)] || "";
+const dienstnacht = d => d.getDay() !== 0 && !feiertag(d);              // Mo–Sa ohne Feiertag
+const werktag = d => d.getDay() >= 1 && d.getDay() <= 5 && !feiertag(d); // Mo–Fr ohne Feiertag
+
+/* ---------- Daten ---------- */
+function laden() { try { const t = localStorage.getItem(SPEICHER); if (t) D = JSON.parse(t); } catch (e) { D = null; } }
+function speichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(D)); } catch (e) { toast("Speichern hat nicht geklappt: " + e.message); } }
+function pruefeDatei(o) {
+  if (!o || o.format !== "mein-dienstplan" || !Array.isArray(o.personen) || typeof o.plan !== "object") throw new Error("Das ist keine Dienstplan-Datei.");
+  o.einstellungen = o.einstellungen || {}; o.einstellungen.grenze = o.einstellungen.grenze ?? 8; o.einstellungen.stundenNacht = o.einstellungen.stundenNacht ?? 8;
+  if (!o.einstellungen.start) o.einstellungen.start = Object.keys(o.plan).sort()[0].slice(0, 7);
+  return o;
+}
+function merken() { rueck.push(JSON.stringify({ plan: D.plan, personen: D.personen, einstellungen: D.einstellungen })); if (rueck.length > 40) rueck.shift(); }
+function rueckgaengig() { if (!rueck.length) return toast("Nichts zum Rückgängigmachen."); const a = JSON.parse(rueck.pop()); Object.assign(D, a); speichern(); zeichnen(); toast("Letzte Änderung zurückgenommen."); }
+const eintrag = (d, pid) => (D.plan[iso(d)] || {})[pid] || "";
+function setzen(d, pid, code) {
+  const k = iso(d); const e = D.plan[k] || (D.plan[k] = {});
+  if (code) e[pid] = code; else delete e[pid];
+}
+const person = id => D.personen.find(p => p.id === id);
+function tourVon(p, code) { if (!code || code[0] !== "N") return 0; return (p.touren || {})[code] || 0; }
+function klasse(p, code) { if (!code) return "F"; if (code === "U" || code === "K" || code === "F") return code; const t = tourVon(p, code); return t ? "T" + t : ""; }
+
+/* ---------- Rechnen ---------- */
+function tagPruefung(d) {
+  const z = { 1: [], 5: [], 8: [], 12: [] };
+  for (const p of D.personen) { const t = tourVon(p, eintrag(d, p.id)); if (t && z[t]) z[t].push(p); }
+  if (!dienstnacht(d)) return { z, fehlt: [], doppelt: [] };
+  return { z, fehlt: TOUREN.filter(t => z[t].length === 0), doppelt: TOUREN.filter(t => z[t].length > 1) };
+}
+function monatsWerte(y, m) {
+  const tage = tageImMonat(y, m), hn = D.einstellungen.stundenNacht;
+  const werk = tage.filter(werktag).length;
+  return D.personen.map(p => {
+    const proTag = p.std / 5; let n = 0, uk = 0, u = 0, k = 0;
+    for (const d of tage) { const c = eintrag(d, p.id); if (c && c[0] === "N") n++; if ((c === "U" || c === "K") && werktag(d)) uk++; if (c === "U") u++; if (c === "K") k++; }
+    const soll = werk * proTag, ist = n * hn + uk * proTag, diff = ist - soll;
+    return { p, soll, ist, diff, dienste: n, urlaub: u, krank: k, auszahlen: p.konto ? 0 : Math.max(0, diff), konto: p.konto ? kontoStand(p, y, m) : null };
+  });
+}
+function monatsListe(bisY, bisM) { const [sy, sm] = D.einstellungen.start.split("-").map(Number); const a = []; let y = sy, m = sm - 1; while (y < bisY || (y === bisY && m <= bisM)) { a.push([y, m]); m++; if (m > 11) { m = 0; y++; } } return a; }
+function kontoStand(p, y, m) {
+  let s = p.kontoStart || 0; const hn = D.einstellungen.stundenNacht;
+  for (const [yy, mm] of monatsListe(y, m)) {
+    const tage = tageImMonat(yy, mm), proTag = p.std / 5; let ist = 0;
+    for (const d of tage) { const c = eintrag(d, p.id); if (c && c[0] === "N") ist += hn; else if ((c === "U" || c === "K") && werktag(d)) ist += proTag; }
+    s += ist - tage.filter(werktag).length * proTag;
+  }
+  return s;
+}
+function urlaubJahr(p, y) {
+  const sy = Number(D.einstellungen.start.slice(0, 4)); let rest = 0, angegeben = false, gen = 0;
+  for (let j = sy; j <= y; j++) {
+    gen = 0; for (let m = 0; m < 12; m++) for (const d of tageImMonat(j, m)) if (eintrag(d, p.id) === "U" && dienstnacht(d)) gen++;
+    const a = (p.urlaub || {})[j]; if (a !== null && a !== undefined && a !== "") angegeben = true;
+    rest = rest + (Number(a) || 0) - gen;
+  }
+  return { genommen: gen, rest: angegeben ? rest : null };
+}
+function warnungen(y, m) {
+  const tage = tageImMonat(y, m); let fehlt = 0, doppelt = 0;
+  for (const d of tage) { const t = tagPruefung(d); if (t.fehlt.length) fehlt++; if (t.doppelt.length) doppelt++; }
+  const w = [];
+  if (fehlt) w.push(fehlt + (fehlt === 1 ? " Nacht: Tour fehlt" : " Nächte: Tour fehlt"));
+  if (doppelt) w.push(doppelt + (doppelt === 1 ? " Nacht: Tour doppelt" : " Nächte: Tour doppelt"));
+  const werte = monatsWerte(y, m);
+  for (const v of werte) { if (v.p.konto && v.konto > D.einstellungen.grenze) w.push(v.p.ruf + " Konto " + zahl(v.konto) + " Std."); const u = urlaubJahr(v.p, y); if (u.rest !== null && u.rest < 0) w.push(v.p.ruf + ": Urlaub " + (-u.rest) + " Tage zu viel"); }
+  return { w, fehlt, doppelt, werte };
+}
+
+/* ---------- Zeichnen ---------- */
+function kopfZeichnen() {
+  $("#kopf").innerHTML = `<div class="kopf"><button id="vor" aria-label="Monat zurück">‹</button><h1>${MONATE[monat]} ${jahr}</h1><button id="nach" aria-label="Monat vor">›</button>
+    <button id="heute">Heute</button><button id="menue" aria-label="Menü">☰</button></div>
+    <div class="reiter">${[["touren", "Touren"], ["personen", "Personen"], ["stunden", "Stunden"]].map(([k, t]) => `<button data-a="${k}" class="${ansicht === k ? "an" : ""}">${t}</button>`).join("")}</div>`;
+  $("#vor").onclick = () => blaettern(-1); $("#nach").onclick = () => blaettern(1);
+  $("#heute").onclick = () => { const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); };
+  $("#menue").onclick = menue;
+  document.querySelectorAll(".reiter button").forEach(b => b.onclick = () => { ansicht = b.dataset.a; zeichnen(); });
+  requestAnimationFrame(() => document.documentElement.style.setProperty("--kh", $("#kopf").offsetHeight + "px"));
+}
+function grenzen() { const s = D.einstellungen.start; const sy = +s.slice(0, 4), sm = +s.slice(5, 7) - 1; if (jahr < sy || (jahr === sy && monat < sm)) { jahr = sy; monat = sm; } }
+function blaettern(n) { monat += n; if (monat < 0) { monat = 11; jahr--; } if (monat > 11) { monat = 0; jahr++; } grenzen(); zeichnen(); }
+function hinweisLeiste(info) {
+  let h = "";
+  const tage = D.letzteSicherung ? Math.floor((Date.now() - new Date(D.letzteSicherung).getTime()) / 864e5) : null;
+  if (tage === null || tage >= 7) h += `<div class="hinweis gelb">${tage === null ? "Noch keine Sicherung gemacht." : "Letzte Sicherung vor " + tage + " Tagen."}<button id="schnellSich">Jetzt sichern</button></div>`;
+  if (info.w.length) h += `<div class="hinweis rot">⚠ ${info.w.map(esc).join(" · ")}</div>`;
+  else h += `<div class="hinweis ok">✓ Plan stimmt.</div>`;
+  return h;
+}
+function zeichnen(zuHeute) {
+  if (!D) return startSeite();
+  kopfZeichnen();
+  const info = warnungen(jahr, monat);
+  let h = hinweisLeiste(info);
+  const heute = iso(new Date());
+  const tage = tageImMonat(jahr, monat);
+  if (ansicht === "touren") {
+    h += `<table><thead><tr><th style="width:80px">Tag</th>${TOUREN.map(t => `<th>Tour ${t}</th>`).join("")}</tr></thead><tbody>`;
+    for (const d of tage) {
+      const f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
+      const abw = D.personen.filter(p => ["U", "K"].includes(eintrag(d, p.id))).map(p => eintrag(d, p.id) + " " + p.ruf);
+      const kl = ["zeile", iso(d) === heute ? "heute" : "", !dn ? (f ? "fei" : "frei") : "", t.fehlt.length || t.doppelt.length ? "falsch" : ""].join(" ");
+      h += `<tr class="${kl}" data-tag="${iso(d)}"><td class="dat">${WT[d.getDay()]} ${kurzDat(d)}${abw.length ? `<small>${esc(abw.join(", "))}</small>` : ""}</td>`;
+      if (!dn) h += `<td colspan="4">${esc(f || "frei")}${TOUREN.some(x => t.z[x].length) ? " · " + TOUREN.filter(x => t.z[x].length).map(x => "T" + x + " " + t.z[x].map(p => p.ruf).join("/")).join(", ") : ""}</td>`;
+      else for (const x of TOUREN) { const l = t.z[x]; h += `<td class="c ${l.length ? "T" + x : "fehlt"} ${l.length > 1 ? "doppelt" : ""}">${l.length ? esc(l.map(p => p.ruf).join("/")) : "fehlt"}</td>`; }
+      h += `</tr>`;
+    }
+    h += `</tbody></table><p class="klein">Tippe auf einen Tag, um ihn zu ändern.</p>`;
+  } else if (ansicht === "personen") {
+    h += `<table><thead><tr><th style="width:80px">Tag</th>${D.personen.map(p => `<th>${esc(p.ruf)}</th>`).join("")}</tr></thead><tbody>`;
+    for (const d of tage) {
+      const f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
+      const kl = ["zeile", iso(d) === heute ? "heute" : "", !dn ? (f ? "fei" : "frei") : "", t.fehlt.length || t.doppelt.length ? "falsch" : ""].join(" ");
+      h += `<tr class="${kl}" data-tag="${iso(d)}"><td class="dat">${WT[d.getDay()]} ${kurzDat(d)}${f ? `<small>${esc(f)}</small>` : ""}</td>`;
+      for (const p of D.personen) { const c = eintrag(d, p.id); h += `<td class="c ${dn || c ? klasse(p, c) : ""}" data-p="${p.id}">${esc(c || (dn ? "–" : ""))}</td>`; }
+      h += `</tr>`;
+    }
+    h += `</tbody></table><p class="klein">Tippe auf ein Feld, um es zu ändern. Leer = frei.</p>`;
+  } else {
+    for (const v of info.werte) {
+      const u = urlaubJahr(v.p, jahr);
+      h += `<div class="karte"><h3><span>${esc(v.p.ruf)}</span><span class="klein">${esc(v.p.name)} · ${zahlOhne(v.p.std)} Std./Woche</span></h3><div class="werte">
+        <div><b>${zahlOhne(v.soll)}</b><span>Soll</span></div><div><b>${zahlOhne(v.ist)}</b><span>Ist</span></div>
+        <div><b class="${v.diff > 0 ? "plus" : v.diff < 0 ? "minus" : ""}">${zahl(v.diff)}</b><span>Monat</span></div>
+        ${v.p.konto ? `<div><b class="${v.konto > D.einstellungen.grenze ? "minus" : ""}">${zahl(v.konto)}</b><span>Konto</span></div>` : `<div><b>${zahlOhne(v.auszahlen)}</b><span>Auszahlen</span></div>`}
+      </div><div class="klein" style="margin-top:6px">${v.dienste} Dienste · Urlaub ${v.urlaub} · Krank ${v.krank} · Resturlaub ${jahr}: ${u.rest === null ? "nicht eingetragen" : u.rest + " Tage"}</div></div>`;
+    }
+    h += `<p class="klein">Plus am Monatsende wird ausbezahlt, ein Minus verfällt. ${esc(D.personen.filter(p => p.konto).map(p => p.ruf).join(", "))}: Überstundenkonto. Urlaub zählt Mo–Sa ohne Feiertage, der Rest geht ins nächste Jahr.</p>`;
+  }
+  $("#haupt").innerHTML = h;
+  const s = $("#schnellSich"); if (s) s.onclick = sichern;
+  document.querySelectorAll("tr[data-tag]").forEach(tr => tr.onclick = ev => {
+    const td = ev.target.closest("td[data-p]"); const d = ausIso(tr.dataset.tag);
+    if (td) feldWahl(d, td.dataset.p); else tagDialog(d);
+  });
+  $("#unten").innerHTML = `<button class="gruen" id="wa">Per WhatsApp schicken</button><button id="watext">Als Text</button>`;
+  $("#wa").onclick = bildTeilen; $("#watext").onclick = textTeilen;
+  if (zuHeute) { const z = document.querySelector("tr.heute"); if (z) z.scrollIntoView({ block: "center" }); else window.scrollTo(0, 0); }
+}
+function startSeite() {
+  $("#kopf").innerHTML = `<div class="kopf"><h1>Dienstplan</h1></div>`; $("#unten").innerHTML = "";
+  $("#haupt").innerHTML = `<div class="leer karte"><h3 style="justify-content:center">Noch kein Plan auf diesem Handy</h3>
+    <p>Lade die Datei, die du bekommen hast (z.&nbsp;B. <b>dienstplan-start.json</b> oder eine Sicherung).</p><button class="haupt" id="ladenBtn">Plan laden</button>
+    <p class="klein">Die Daten bleiben nur auf diesem Handy.</p><a class="klein" href="anleitung.html">Anleitung</a></div>`;
+  $("#ladenBtn").onclick = () => $("#datei").click();
+}
+
+/* ---------- Dialoge ---------- */
+function dialog(html, nachOeffnen) {
+  const bg = document.createElement("div"); bg.className = "dlg-bg"; bg.innerHTML = `<div class="dlg">${html}</div>`;
+  bg.onclick = e => { if (e.target === bg) zu(); }; document.body.appendChild(bg);
+  function zu() { bg.remove(); zeichnen(); }
+  if (nachOeffnen) nachOeffnen(bg.querySelector(".dlg"), zu); return zu;
+}
+function codeKnoepfe(p, d, wahl) {
+  const c = eintrag(d, p.id);
+  return `<div class="codes">${p.codes.map(x => `<button data-c="${x}" class="${klasse(p, x)} ${c === x ? "an" : ""}">${x}</button>`).join("")}<button data-c="" class="${!c ? "an" : ""}">leer</button></div>`;
+}
+function tagStatus(d) {
+  if (!dienstnacht(d)) return `<div class="status" style="background:var(--frei)">${esc(feiertag(d) || "Sonntag")}: keine Dienstnacht</div>`;
+  const t = tagPruefung(d);
+  if (!t.fehlt.length && !t.doppelt.length) return `<div class="status" style="background:var(--okbg);color:var(--ok)">✓ Alle 4 Touren besetzt</div>`;
+  return `<div class="status" style="background:var(--rotbg);color:var(--rot)">${t.fehlt.length ? "Fehlt: Tour " + t.fehlt.join(", ") + ". " : ""}${t.doppelt.length ? "Doppelt: Tour " + t.doppelt.join(", ") + "." : ""}</div>`;
+}
+function tagDialog(d) {
+  const inhalt = () => `<div class="dlg-kopf"><button data-n="-1">‹</button><span>${WT[d.getDay()]} ${kurzDat(d)}${d.getFullYear()}</span><button data-n="1">›</button><button data-x>✕</button></div>${tagStatus(d)}
+    ${D.personen.map(p => `<div class="pers" data-p="${p.id}"><div class="n"><span>${esc(p.ruf)}</span><span class="klein">${esc(p.name)}</span></div>${codeKnoepfe(p, d)}</div>`).join("")}
+    <div class="dlg-fuss"><button class="haupt" data-x>Fertig</button></div>`;
+  dialog("", (el, zu) => {
+    const neu = () => { el.innerHTML = inhalt(); binden(); };
+    function binden() {
+      el.querySelectorAll("[data-x]").forEach(b => b.onclick = zu);
+      el.querySelectorAll("[data-n]").forEach(b => b.onclick = () => { d = new Date(d); d.setDate(d.getDate() + Number(b.dataset.n)); neu(); });
+      el.querySelectorAll(".pers").forEach(pe => pe.querySelectorAll("button[data-c]").forEach(b => b.onclick = () => {
+        merken(); setzen(d, pe.dataset.p, b.dataset.c); speichern(); neu(); }));
+    }
+    neu();
+  });
+}
+function feldWahl(d, pid) {
+  const p = person(pid);
+  dialog(`<div class="dlg-kopf"><span>${esc(p.ruf)} · ${WT[d.getDay()]} ${kurzDat(d)}</span><button data-x>✕</button></div><div id="st">${tagStatus(d)}</div>${codeKnoepfe(p, d)}
+    <p class="klein">${p.codes.filter(c => c[0] === "N").map(c => c + " = Tour " + tourVon(p, c)).join(" · ")}</p>`, (el, zu) => {
+    el.querySelector("[data-x]").onclick = zu;
+    el.querySelectorAll("button[data-c]").forEach(b => b.onclick = () => { merken(); setzen(d, pid, b.dataset.c); speichern(); zu(); });
+  });
+}
+function zeitraumDialog() {
+  const h = iso(new Date());
+  dialog(`<div class="dlg-kopf"><span>Zeitraum eintragen</span><button data-x>✕</button></div>
+    <label class="feld">Person<select id="zp">${D.personen.map(p => `<option value="${p.id}">${esc(p.ruf)} (${esc(p.name)})</option>`).join("")}</select></label>
+    <div class="zwei"><label class="feld">von<input type="date" id="zv" value="${h}"></label><label class="feld">bis<input type="date" id="zb" value="${h}"></label></div>
+    <label class="feld">Eintrag<select id="zc"></select></label>
+    <label class="klein" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" id="zs" checked style="width:auto"> Sonntage und Feiertage auslassen</label>
+    <div class="dlg-fuss"><button data-x>Abbrechen</button><button class="haupt" id="zok">Eintragen</button></div>`, (el, zu) => {
+    const fuell = () => { const p = person(el.querySelector("#zp").value); el.querySelector("#zc").innerHTML = p.codes.map(c => `<option>${c}</option>`).join("") + `<option value="">leer (frei)</option>`; el.querySelector("#zc").value = "U"; };
+    fuell(); el.querySelector("#zp").onchange = fuell;
+    el.querySelectorAll("[data-x]").forEach(b => b.onclick = zu);
+    el.querySelector("#zok").onclick = () => {
+      const v = el.querySelector("#zv").value, b = el.querySelector("#zb").value, pid = el.querySelector("#zp").value, c = el.querySelector("#zc").value, aus = el.querySelector("#zs").checked;
+      if (!v || !b || b < v) return toast("Bitte von und bis prüfen.");
+      merken(); let n = 0;
+      for (let d = ausIso(v); iso(d) <= b; d.setDate(d.getDate() + 1)) { if (aus && !dienstnacht(d)) continue; setzen(new Date(d), pid, c); n++; }
+      speichern(); const d0 = ausIso(v); jahr = d0.getFullYear(); monat = d0.getMonth(); zu(); toast(n + " Tage eingetragen.");
+    };
+  });
+}
+function einstellungenDialog() {
+  const sy = Number(D.einstellungen.start.slice(0, 4)), jahre = []; for (let j = sy; j <= Math.max(new Date().getFullYear() + 1, jahr); j++) jahre.push(j);
+  dialog(`<div class="dlg-kopf"><span>Einstellungen</span><button data-x>✕</button></div>
+    ${D.personen.map(p => `<div class="karte" data-p="${p.id}"><h3><span>${esc(p.ruf)}</span><span class="klein">${p.codes.join(", ")}</span></h3>
+      <div class="zwei"><label class="feld">Name<input data-f="name" value="${esc(p.name)}"></label><label class="feld">Rufname (im Plan)<input data-f="ruf" value="${esc(p.ruf)}"></label></div>
+      <div class="zwei"><label class="feld">Wochenstunden<input data-f="std" type="number" inputmode="decimal" value="${p.std}"></label>
+      ${p.konto ? `<label class="feld">Konto Start (Std.)<input data-f="kontoStart" type="number" inputmode="decimal" value="${p.kontoStart || 0}"></label>` : `<span></span>`}</div>
+      <div class="zwei">${jahre.map(j => `<label class="feld">Urlaubstage ${j}${j === sy ? " (Rest ab Start)" : ""}<input data-u="${j}" type="number" inputmode="numeric" value="${(p.urlaub || {})[j] ?? ""}"></label>`).join("")}</div></div>`).join("")}
+    <label class="feld">Hinweis, wenn das Konto höher ist als (Std.)<input id="grenze" type="number" value="${D.einstellungen.grenze}"></label>
+    <div class="dlg-fuss"><button data-x>Abbrechen</button><button class="haupt" id="eok">Speichern</button></div>`, (el, zu) => {
+    el.querySelectorAll("[data-x]").forEach(b => b.onclick = zu);
+    el.querySelector("#eok").onclick = () => {
+      merken();
+      el.querySelectorAll(".karte[data-p]").forEach(k => { const p = person(k.dataset.p);
+        k.querySelectorAll("[data-f]").forEach(i => { const f = i.dataset.f; p[f] = (f === "std" || f === "kontoStart") ? (Number(String(i.value).replace(",", ".")) || 0) : i.value.trim(); });
+        p.urlaub = p.urlaub || {}; k.querySelectorAll("[data-u]").forEach(i => { p.urlaub[i.dataset.u] = i.value === "" ? null : Number(i.value); }); });
+      D.einstellungen.grenze = Number(el.querySelector("#grenze").value) || 0; speichern(); zu(); toast("Gespeichert.");
+    };
+  });
+}
+function menue() {
+  dialog(`<div class="dlg-kopf"><span>Menü</span><button data-x>✕</button></div><div class="menue">
+    <button data-m="zeit">📅 Zeitraum eintragen (z. B. Urlaub)</button>
+    <button data-m="rueck" ${rueck.length ? "" : "disabled"}>↩ Letzte Änderung rückgängig</button>
+    <button data-m="sich">💾 Sicherung speichern</button>
+    <button data-m="laden">📂 Sicherung laden</button>
+    <button data-m="einst">⚙ Einstellungen (Namen, Stunden, Urlaubstage)</button>
+    <button data-m="anl">❔ Anleitung</button></div>
+    <p class="klein">Stand: ${D.letzteAenderung ? new Date(D.letzteAenderung).toLocaleString("de-DE") : "–"} · Letzte Sicherung: ${D.letzteSicherung ? new Date(D.letzteSicherung).toLocaleString("de-DE") : "noch keine"}</p>`, (el, zu) => {
+    el.querySelector("[data-x]").onclick = zu;
+    el.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; el.parentElement.remove();
+      if (m === "zeit") zeitraumDialog(); else if (m === "rueck") rueckgaengig(); else if (m === "sich") { zeichnen(); sichern(); }
+      else if (m === "laden") { zeichnen(); $("#datei").click(); } else if (m === "einst") einstellungenDialog(); else if (m === "anl") location.href = "anleitung.html"; });
+  });
+}
+
+/* ---------- Teilen ---------- */
+async function teilenDatei(blob, name, titel) {
+  const file = new File([blob], name, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: titel }); return "geteilt"; } catch (e) { if (e.name === "AbortError") return "abgebrochen"; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return "gespeichert";
+}
+function monatsBild(y, m) {
+  const tage = tageImMonat(y, m), W = 1080, zh = 46, oben = 150, hoehe = oben + tage.length * zh + 70;
+  const c = document.createElement("canvas"); c.width = W; c.height = hoehe; const g = c.getContext("2d");
+  const farbe = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, hoehe);
+  g.fillStyle = "#1d2733"; g.font = "bold 46px Arial"; g.fillText("Nachtschichtplan " + MONATE[m] + " " + y, 30, 66);
+  const sp = [30, 190, 400, 610, 820, 1050]; // Datum, T1, T5, T8, T12, Ende
+  g.font = "bold 26px Arial"; g.fillStyle = "#5b6575"; g.fillText("Tag", sp[0] + 6, 128); TOUREN.forEach((t, i) => g.fillText("Tour " + t, sp[i + 1] + 12, 128));
+  tage.forEach((d, i) => {
+    const yy = oben + i * zh, f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
+    g.fillStyle = !dn ? (f ? farbe("--fei") : farbe("--frei")) : "#f6f7f9"; g.fillRect(sp[0], yy, sp[5] - sp[0], zh - 4);
+    g.fillStyle = "#1d2733"; g.font = "bold 26px Arial"; g.fillText(WT[d.getDay()] + " " + kurzDat(d), sp[0] + 8, yy + 31);
+    if (!dn) { g.font = "24px Arial"; g.fillStyle = "#5b6575"; g.fillText(f || "frei", sp[1] + 12, yy + 31); }
+    else TOUREN.forEach((x, k) => { const l = t.z[x]; g.fillStyle = l.length ? farbe("--t" + x) : farbe("--rotbg"); g.fillRect(sp[k + 1] + 3, yy, sp[k + 2] - sp[k + 1] - 6, zh - 4);
+      g.fillStyle = l.length ? "#1d2733" : "#c62828"; g.font = (l.length ? "" : "bold ") + "26px Arial"; g.fillText(l.length ? l.map(p => p.ruf).join("/") : "fehlt", sp[k + 1] + 14, yy + 31, sp[k + 2] - sp[k + 1] - 24); });
+  });
+  const ab = []; for (const p of D.personen) { const u = tage.filter(d => eintrag(d, p.id) === "U" && dienstnacht(d)); if (u.length) ab.push(p.ruf + " Urlaub " + bereiche(u)); }
+  g.font = "24px Arial"; g.fillStyle = "#5b6575"; g.fillText(ab.length ? ab.join(" · ") : "", 30, hoehe - 30, W - 60);
+  return c;
+}
+// Tage zu Bereichen zusammenfassen, z. B. „01.–09.12.“; Lücken über Sonntag/Feiertag zählen nicht als Unterbrechung
+function bereiche(tage) {
+  const r = [], fmt = (a, b) => a === b ? kurzDat(a) : pad(a.getDate()) + ".–" + kurzDat(b);
+  let a = tage[0], b = tage[0];
+  for (let i = 1; i < tage.length; i++) { const d = tage[i]; if ((d - b) / 864e5 <= 2.1) { b = d; continue; } r.push(fmt(a, b)); a = d; b = d; }
+  r.push(fmt(a, b)); return r.join(", ");
+}
+async function bildTeilen() {
+  const c = monatsBild(jahr, monat);
+  c.toBlob(async b => { const r = await teilenDatei(b, "Nachtschichtplan " + MONATE[monat] + " " + jahr + ".png", "Nachtschichtplan " + MONATE[monat] + " " + jahr);
+    if (r === "gespeichert") toast("Bild gespeichert. In WhatsApp über die Büroklammer anhängen."); }, "image/png");
+}
+function monatsText(y, m) {
+  const z = ["Nachtschichtplan " + MONATE[m] + " " + y, ""];
+  for (const d of tageImMonat(y, m)) { if (!dienstnacht(d)) continue; const t = tagPruefung(d);
+    z.push(WT[d.getDay()] + " " + kurzDat(d) + " " + TOUREN.map(x => "T" + x + " " + (t.z[x].length ? t.z[x].map(p => p.ruf).join("/") : "fehlt")).join(" · ")); }
+  const ab = []; for (const p of D.personen) { const u = tageImMonat(y, m).filter(d => eintrag(d, p.id) === "U" && dienstnacht(d)); if (u.length) ab.push(p.ruf + " Urlaub " + bereiche(u)); }
+  if (ab.length) z.push("", ab.join("\n")); return z.join("\n");
+}
+async function textTeilen() {
+  const t = monatsText(jahr, monat);
+  if (navigator.share) { try { await navigator.share({ text: t }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  location.href = "https://wa.me/?text=" + encodeURIComponent(t);
+}
+async function sichern() {
+  const jetzt = new Date(); const kopie = JSON.parse(JSON.stringify(D)); kopie.letzteSicherung = jetzt.toISOString();
+  const b = new Blob([JSON.stringify(kopie)], { type: "application/json" });
+  const r = await teilenDatei(b, "dienstplan-sicherung-" + iso(jetzt) + ".json", "Dienstplan Sicherung " + kurzDat(jetzt) + jetzt.getFullYear());
+  if (r !== "abgebrochen") { D.letzteSicherung = jetzt.toISOString(); speichern(); zeichnen(); toast(r === "geteilt" ? "Sicherung weitergegeben." : "Sicherung in Downloads gespeichert."); }
+}
+$("#datei").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try { const o = pruefeDatei(JSON.parse(await f.text()));
+    if (D && !confirm("Den Plan auf diesem Handy durch die Datei „" + f.name + "“ ersetzen?\nDer jetzige Stand geht dabei verloren, wenn er nicht gesichert ist.")) return;
+    if (D) merken(); D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
+  } catch (err) { alert("Die Datei ließ sich nicht laden: " + err.message); }
+};
+/* jede Änderung mit Zeitstempel */
+const _speichern = speichern; speichern = function () { if (D) D.letzteAenderung = new Date().toISOString(); _speichern(); };
+
+/* ---------- Start ---------- */
+laden();
+{ const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); }
+if (D) grenzen();
+zeichnen(true);
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");
+window.DP = { get daten() { return D; }, set daten(v) { D = pruefeDatei(v); speichern(); grenzen(); zeichnen(); }, monatsWerte, tagPruefung, urlaubJahr, feiertage, monatsBild, monatsText, kontoStand };
+</script></body></html>
