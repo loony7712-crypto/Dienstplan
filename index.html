@@ -37,8 +37,10 @@ tr.falsch td.dat{background:var(--rotbg);color:var(--rot)}
 tr.frei td{background:var(--frei);color:var(--mut)}tr.fei td{background:var(--fei);color:#6b3f1d}
 td.c{border-left:2px solid var(--bg)}
 .T1{background:var(--t1)!important}.T12{background:var(--t12)!important}.T8{background:var(--t8)!important}.T5{background:var(--t5)!important}
-.U{background:var(--u)!important;color:#fff}.K{background:var(--k)!important;color:#fff}.F{color:var(--mut)}
+.U{background:#fff!important;color:#00796b;font-weight:700;box-shadow:inset 0 0 0 2px #5bc0be}.K{background:var(--k)!important;color:#fff}.F{color:var(--mut)}
 .fehlt{background:var(--rotbg)!important;color:var(--rot);font-weight:700}.doppelt{outline:2px solid var(--rot);outline-offset:-2px}
+.pname{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;border-radius:8px;padding:2px 6px;color:var(--ink)}
+.punkt{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:6px;vertical-align:-2px;border:1px solid rgba(0,0,0,.15)}
 .karte{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px}
 .karte h3{margin:0 0 6px;font-size:18px;display:flex;justify-content:space-between;gap:8px}
 .werte{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center}
@@ -75,6 +77,9 @@ const SPEICHER = "mein-dienstplan";
 const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 const WT = ["So","Mo","Di","Mi","Do","Fr","Sa"];
 const TOUREN = [1, 5, 8, 12];
+// Eigene Farbe je Person (in den Einstellungen änderbar); ohne Eintrag der Reihe nach aus dieser Liste
+const FARBEN = ["#8ecae6", "#b5e48c", "#ffcf70", "#f4a6c6", "#c9b6e4", "#9be3d0", "#f7a072"];
+const farbe = p => p.farbe || FARBEN[D.personen.indexOf(p) % FARBEN.length];
 let D = null;                 // alle Daten
 let ansicht = "touren";       // touren | personen | stunden
 let jahr, monat;              // angezeigter Monat (monat 0–11)
@@ -212,24 +217,27 @@ function zeichnen(zuHeute) {
       const kl = ["zeile", iso(d) === heute ? "heute" : "", !dn ? (f ? "fei" : "frei") : "", t.fehlt.length || t.doppelt.length ? "falsch" : ""].join(" ");
       h += `<tr class="${kl}" data-tag="${iso(d)}"><td class="dat">${WT[d.getDay()]} ${kurzDat(d)}${abw.length ? `<small>${esc(abw.join(", "))}</small>` : ""}</td>`;
       if (!dn) h += `<td colspan="4">${esc(f || "frei")}${TOUREN.some(x => t.z[x].length) ? " · " + TOUREN.filter(x => t.z[x].length).map(x => "T" + x + " " + t.z[x].map(p => p.ruf).join("/")).join(", ") : ""}</td>`;
-      else for (const x of TOUREN) { const l = t.z[x]; h += `<td class="c ${l.length ? "T" + x : "fehlt"} ${l.length > 1 ? "doppelt" : ""}">${l.length ? esc(l.map(p => p.ruf).join("/")) : "fehlt"}</td>`; }
+      else for (const x of TOUREN) { const l = t.z[x];
+        const bg = l.length === 1 ? farbe(l[0]) : l.length > 1 ? `linear-gradient(90deg,${l.map(farbe).join(",")})` : "";
+        h += `<td class="c ${l.length ? "" : "fehlt"} ${l.length > 1 ? "doppelt" : ""}" ${bg ? `style="background:${bg}"` : ""}>${l.length ? esc(l.map(p => p.ruf).join("/")) : "fehlt"}</td>`; }
       h += `</tr>`;
     }
     h += `</tbody></table><p class="klein">Tippe auf einen Tag, um ihn zu ändern.</p>`;
   } else if (ansicht === "personen") {
-    h += `<table><thead><tr><th style="width:80px">Tag</th>${D.personen.map(p => `<th>${esc(p.ruf)}</th>`).join("")}</tr></thead><tbody>`;
+    h += `<table><thead><tr><th style="width:80px">Tag</th>${D.personen.map(p => `<th><span class="pname" style="background:${farbe(p)}">${esc(p.ruf)}</span></th>`).join("")}</tr></thead><tbody>`;
     for (const d of tage) {
       const f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
       const kl = ["zeile", iso(d) === heute ? "heute" : "", !dn ? (f ? "fei" : "frei") : "", t.fehlt.length || t.doppelt.length ? "falsch" : ""].join(" ");
       h += `<tr class="${kl}" data-tag="${iso(d)}"><td class="dat">${WT[d.getDay()]} ${kurzDat(d)}${f ? `<small>${esc(f)}</small>` : ""}</td>`;
-      for (const p of D.personen) { const c = eintrag(d, p.id); h += `<td class="c ${dn || c ? klasse(p, c) : ""}" data-p="${p.id}">${esc(c || (dn ? "–" : ""))}</td>`; }
+      for (const p of D.personen) { const c = eintrag(d, p.id), dienst = c && c[0] === "N";
+        h += `<td class="c ${dienst ? "" : dn || c ? klasse(p, c) : ""}" ${dienst ? `style="background:${farbe(p)}"` : ""} data-p="${p.id}">${esc(c || (dn ? "–" : ""))}</td>`; }
       h += `</tr>`;
     }
     h += `</tbody></table><p class="klein">Tippe auf ein Feld, um es zu ändern. Leer = frei.</p>`;
   } else {
     for (const v of info.werte) {
       const u = urlaubJahr(v.p, jahr);
-      h += `<div class="karte"><h3><span>${esc(v.p.ruf)}</span><span class="klein">${esc(v.p.name)} · ${zahlOhne(v.p.std)} Std./Woche</span></h3><div class="werte">
+      h += `<div class="karte"><h3><span><i class="punkt" style="background:${farbe(v.p)}"></i>${esc(v.p.ruf)}</span><span class="klein">${esc(v.p.name)} · ${zahlOhne(v.p.std)} Std./Woche</span></h3><div class="werte">
         <div><b>${zahlOhne(v.soll)}</b><span>Soll</span></div><div><b>${zahlOhne(v.ist)}</b><span>Ist</span></div>
         <div><b class="${v.diff > 0 ? "plus" : v.diff < 0 ? "minus" : ""}">${zahl(v.diff)}</b><span>Monat</span></div>
         ${v.p.konto ? `<div><b class="${v.konto > D.einstellungen.grenze ? "minus" : ""}">${zahl(v.konto)}</b><span>Konto</span></div>` : `<div><b>${zahlOhne(v.auszahlen)}</b><span>Auszahlen</span></div>`}
@@ -275,7 +283,7 @@ function tagStatus(d) {
 }
 function tagDialog(d) {
   const inhalt = () => `<div class="dlg-kopf"><button data-n="-1">‹</button><span>${WT[d.getDay()]} ${kurzDat(d)}${d.getFullYear()}</span><button data-n="1">›</button><button data-x>✕</button></div>${tagStatus(d)}
-    ${D.personen.map(p => `<div class="pers" data-p="${p.id}"><div class="n"><span>${esc(p.ruf)}</span><span class="klein">${esc(p.name)}</span></div>${codeKnoepfe(p, d)}</div>`).join("")}
+    ${D.personen.map(p => `<div class="pers" data-p="${p.id}"><div class="n"><span><i class="punkt" style="background:${farbe(p)}"></i>${esc(p.ruf)}</span><span class="klein">${esc(p.name)}</span></div>${codeKnoepfe(p, d)}</div>`).join("")}
     <div class="dlg-fuss"><button class="haupt" data-x>Fertig</button></div>`;
   dialog("", (el, zu) => {
     const neu = () => { el.innerHTML = inhalt(); binden(); };
@@ -321,6 +329,7 @@ function einstellungenDialog() {
   dialog(`<div class="dlg-kopf"><span>Einstellungen</span><button data-x>✕</button></div>
     ${D.personen.map(p => `<div class="karte" data-p="${p.id}"><h3><span>${esc(p.ruf)}</span><span class="klein">${p.codes.join(", ")}</span></h3>
       <div class="zwei"><label class="feld">Name<input data-f="name" value="${esc(p.name)}"></label><label class="feld">Rufname (im Plan)<input data-f="ruf" value="${esc(p.ruf)}"></label></div>
+      <label class="feld">Farbe im Plan<input data-f="farbe" type="color" value="${farbe(p)}" style="height:46px;padding:4px"></label>
       <div class="zwei"><label class="feld">Wochenstunden<input data-f="std" type="number" inputmode="decimal" value="${p.std}"></label>
       ${p.konto ? `<label class="feld">Konto Start (Std.)<input data-f="kontoStart" type="number" inputmode="decimal" value="${p.kontoStart || 0}"></label>` : `<span></span>`}</div>
       <div class="zwei">${jahre.map(j => `<label class="feld">Urlaubstage ${j}${j === sy ? " (Rest ab Start)" : ""}<input data-u="${j}" type="number" inputmode="numeric" value="${(p.urlaub || {})[j] ?? ""}"></label>`).join("")}</div></div>`).join("")}
@@ -364,17 +373,17 @@ async function teilenDatei(blob, name, titel) {
 function monatsBild(y, m) {
   const tage = tageImMonat(y, m), W = 1080, zh = 46, oben = 150, hoehe = oben + tage.length * zh + 70;
   const c = document.createElement("canvas"); c.width = W; c.height = hoehe; const g = c.getContext("2d");
-  const farbe = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, hoehe);
   g.fillStyle = "#1d2733"; g.font = "bold 46px Arial"; g.fillText("Nachtschichtplan " + MONATE[m] + " " + y, 30, 66);
   const sp = [30, 190, 400, 610, 820, 1050]; // Datum, T1, T5, T8, T12, Ende
   g.font = "bold 26px Arial"; g.fillStyle = "#5b6575"; g.fillText("Tag", sp[0] + 6, 128); TOUREN.forEach((t, i) => g.fillText("Tour " + t, sp[i + 1] + 12, 128));
   tage.forEach((d, i) => {
     const yy = oben + i * zh, f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
-    g.fillStyle = !dn ? (f ? farbe("--fei") : farbe("--frei")) : "#f6f7f9"; g.fillRect(sp[0], yy, sp[5] - sp[0], zh - 4);
+    g.fillStyle = !dn ? (f ? css("--fei") : css("--frei")) : "#f6f7f9"; g.fillRect(sp[0], yy, sp[5] - sp[0], zh - 4);
     g.fillStyle = "#1d2733"; g.font = "bold 26px Arial"; g.fillText(WT[d.getDay()] + " " + kurzDat(d), sp[0] + 8, yy + 31);
     if (!dn) { g.font = "24px Arial"; g.fillStyle = "#5b6575"; g.fillText(f || "frei", sp[1] + 12, yy + 31); }
-    else TOUREN.forEach((x, k) => { const l = t.z[x]; g.fillStyle = l.length ? farbe("--t" + x) : farbe("--rotbg"); g.fillRect(sp[k + 1] + 3, yy, sp[k + 2] - sp[k + 1] - 6, zh - 4);
+    else TOUREN.forEach((x, k) => { const l = t.z[x]; g.fillStyle = l.length ? farbe(l[0]) : css("--rotbg"); g.fillRect(sp[k + 1] + 3, yy, sp[k + 2] - sp[k + 1] - 6, zh - 4);
       g.fillStyle = l.length ? "#1d2733" : "#c62828"; g.font = (l.length ? "" : "bold ") + "26px Arial"; g.fillText(l.length ? l.map(p => p.ruf).join("/") : "fehlt", sp[k + 1] + 14, yy + 31, sp[k + 2] - sp[k + 1] - 24); });
   });
   const ab = []; for (const p of D.personen) { const u = tage.filter(d => eintrag(d, p.id) === "U" && dienstnacht(d)); if (u.length) ab.push(p.ruf + " Urlaub " + bereiche(u)); }
