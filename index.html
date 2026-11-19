@@ -131,6 +131,8 @@ function setzen(d, pid, code) {
   if (code) e[pid] = code; else delete e[pid];
 }
 const person = id => D.personen.find(p => p.id === id);
+// Spec 004: Auf dem Handy des Kollegen gibt es keine Stunden, kein Konto, keinen Urlaub und keine Einstellungen
+const kollege = () => !!D && D.rolle === "kollege";
 function tourVon(p, code) { if (!code || code[0] !== "N") return 0; return (p.touren || {})[code] || 0; }
 function klasse(p, code) { if (!code) return "F"; if (code === "U" || code === "K" || code === "F") return code; const t = tourVon(p, code); return t ? "T" + t : ""; }
 
@@ -176,7 +178,7 @@ function warnungen(y, m) {
   const w = [];
   if (fehlt) w.push(fehlt + (fehlt === 1 ? " Nacht: Tour fehlt" : " Nächte: Tour fehlt"));
   if (doppelt) w.push(doppelt + (doppelt === 1 ? " Nacht: Tour doppelt" : " Nächte: Tour doppelt"));
-  const werte = monatsWerte(y, m);
+  const werte = kollege() ? [] : monatsWerte(y, m);
   for (const v of werte) { if (v.p.konto && v.konto > D.einstellungen.grenze) w.push(v.p.ruf + " Konto " + zahl(v.konto) + " Std."); const u = urlaubJahr(v.p, y); if (u.rest !== null && u.rest < 0) w.push(v.p.ruf + ": Urlaub " + (-u.rest) + " Tage zu viel"); }
   return { w, fehlt, doppelt, werte };
 }
@@ -185,7 +187,7 @@ function warnungen(y, m) {
 function kopfZeichnen() {
   $("#kopf").innerHTML = `<div class="kopf"><button id="vor" aria-label="Monat zurück">‹</button><h1>${MONATE[monat]} ${jahr}</h1><button id="nach" aria-label="Monat vor">›</button>
     <button id="heute">Heute</button><button id="menue" aria-label="Menü">☰</button></div>
-    <div class="reiter">${[["touren", "Touren"], ["personen", "Personen"], ["stunden", "Stunden"]].map(([k, t]) => `<button data-a="${k}" class="${ansicht === k ? "an" : ""}">${t}</button>`).join("")}</div>`;
+    <div class="reiter">${[["touren", "Touren"], ["personen", "Personen"], ["stunden", "Stunden"]].filter(([k]) => !(kollege() && k === "stunden")).map(([k, t]) => `<button data-a="${k}" class="${ansicht === k ? "an" : ""}">${t}</button>`).join("")}</div>`;
   $("#vor").onclick = () => blaettern(-1); $("#nach").onclick = () => blaettern(1);
   $("#heute").onclick = () => { const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); };
   $("#menue").onclick = menue;
@@ -204,6 +206,7 @@ function hinweisLeiste(info) {
 }
 function zeichnen(zuHeute) {
   if (!D) return startSeite();
+  if (kollege() && ansicht === "stunden") ansicht = "touren";
   kopfZeichnen();
   const info = warnungen(jahr, monat);
   let h = hinweisLeiste(info);
@@ -258,8 +261,8 @@ function zeichnen(zuHeute) {
 function startSeite() {
   $("#kopf").innerHTML = `<div class="kopf"><h1>Dienstplan</h1></div>`; $("#unten").innerHTML = "";
   $("#haupt").innerHTML = `<div class="leer karte"><h3 style="justify-content:center">Noch kein Plan auf diesem Handy</h3>
-    <p>Lade die Datei, die du bekommen hast (z.&nbsp;B. <b>dienstplan-start.json</b> oder eine Sicherung <b>dienstplan-sicherung-….txt</b>).</p><button class="haupt" id="ladenBtn">Plan laden</button>
-    <p class="klein">Im Auswahlfenster findest du die Datei meist unter <b>Downloads</b> (☰ oben links im Fenster). Wurde sie per WhatsApp oder Mail geschickt, vorher dort auf die Datei tippen und speichern.</p>
+    <p>Lade die Datei, die du bekommen hast (z.&nbsp;B. <b>dienstplan-von-….txt</b> von einem Kollegen oder eine Sicherung <b>dienstplan-sicherung-….txt</b>).</p><button class="haupt" id="ladenBtn">Plan laden</button>
+    <p class="klein">Kam die Datei per WhatsApp: dort auf die Datei tippen und speichern. Am iPhone: Teilen → „In Dateien sichern“. Am Android-Handy liegt sie meist unter <b>Downloads</b>.</p>
     <p class="klein">Die Daten bleiben nur auf diesem Handy.</p><a class="klein" href="anleitung.html">Anleitung</a></div>`;
   $("#ladenBtn").onclick = () => $("#datei").click();
 }
@@ -349,15 +352,20 @@ function menue() {
   dialog(`<div class="dlg-kopf"><span>Menü</span><button data-x>✕</button></div><div class="menue">
     <button data-m="zeit">📅 Zeitraum eintragen (z. B. Urlaub)</button>
     <button data-m="rueck" ${rueck.length ? "" : "disabled"}>↩ Letzte Änderung rückgängig</button>
+    <button data-m="senden">📤 Plan an Kollegen schicken</button>
+    <button data-m="empf">📥 Plan von Kollegen laden</button>
     <button data-m="sich">💾 Sicherung speichern (dann „In Drive speichern“ wählen)</button>
     <button data-m="laden">📂 Sicherung laden</button>
-    <button data-m="einst">⚙ Einstellungen (Namen, Stunden, Urlaubstage)</button>
+    ${kollege() ? "" : `<button data-m="einst">⚙ Einstellungen (Namen, Stunden, Urlaubstage)</button>`}
+    <button data-m="ich">👤 Ich bin: ${esc(D.ich || "noch nicht eingetragen")}</button>
     <button data-m="anl">❔ Anleitung</button></div>
-    <p class="klein">Stand: ${D.letzteAenderung ? new Date(D.letzteAenderung).toLocaleString("de-DE") : "–"} · Letzte Sicherung: ${D.letzteSicherung ? new Date(D.letzteSicherung).toLocaleString("de-DE") : "noch keine"}</p>`, (el, zu) => {
+    <p class="klein">Stand: ${D.letzteAenderung ? new Date(D.letzteAenderung).toLocaleString("de-DE") : "–"} · Letzte Sicherung: ${D.letzteSicherung ? new Date(D.letzteSicherung).toLocaleString("de-DE") : "noch keine"}${kollege() ? " · Namen und Stunden pflegt der Planer." : ""}</p>`, (el, zu) => {
     el.querySelector("[data-x]").onclick = zu;
     el.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; el.parentElement.remove();
       if (m === "zeit") zeitraumDialog(); else if (m === "rueck") rueckgaengig(); else if (m === "sich") { zeichnen(); sichern(); }
-      else if (m === "laden") { zeichnen(); $("#datei").click(); } else if (m === "einst") einstellungenDialog(); else if (m === "anl") location.href = "anleitung.html"; });
+      else if (m === "laden" || m === "empf") { zeichnen(); $("#datei").click(); } else if (m === "einst") einstellungenDialog();
+      else if (m === "senden") { zeichnen(); planSenden(); } else if (m === "ich") { zeichnen(); werBinIch(true); }
+      else if (m === "anl") location.href = "anleitung.html"; });
   });
 }
 
@@ -421,14 +429,91 @@ async function sichern() {
   const r = await teilenDatei(b, "dienstplan-sicherung-" + iso(jetzt) + ".txt", "Dienstplan Sicherung " + kurzDat(jetzt) + jetzt.getFullYear());
   if (r !== "abgebrochen") { D.letzteSicherung = jetzt.toISOString(); speichern(); zeichnen(); toast(r === "geteilt" ? "Sicherung weitergegeben. Im Menü „In Drive speichern“ wählen." : "Sicherung in Downloads gespeichert."); }
 }
+/* ---------- Spec 004: Plan mit einem Kollegen tauschen ---------- */
+const zeitText = s => s ? new Date(s).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " Uhr" : "unbekannt";
+function werBinIch(aendern) {
+  if (D.ich && !aendern) return D.ich;
+  const n = (prompt("Wer bist du? (Dein Vorname, er steht in der Datei für den Kollegen)", D.ich || "") || "").trim();
+  if (n) { D.ich = n; _speichern(); }
+  return D.ich;
+}
+// Datei für den Kollegen: nur Plan und Personen ohne Stunden, Konto und Urlaub
+function abgleichDatei() {
+  return { format: "mein-dienstplan", version: 1, art: "abgleich", von: D.ich || "", rolle: kollege() ? "kollege" : "planer", stand: D.letzteAenderung || new Date().toISOString(),
+    einstellungen: { start: D.einstellungen.start, stundenNacht: D.einstellungen.stundenNacht },
+    personen: D.personen.map(p => ({ id: p.id, name: p.name, ruf: p.ruf, codes: p.codes, touren: p.touren, farbe: farbe(p) })), plan: D.plan };
+}
+async function planSenden() {
+  if (!werBinIch()) return toast("Bitte zuerst eintragen, wer du bist.");
+  const jetzt = new Date(), name = "dienstplan-von-" + D.ich.replace(/[^\wäöüÄÖÜß-]/g, "") + "-" + pad(jetzt.getDate()) + "." + pad(jetzt.getMonth() + 1) + ".txt";
+  const r = await teilenDatei(new Blob([JSON.stringify(abgleichDatei())], { type: "text/plain" }), name, "Dienstplan von " + D.ich);
+  if (r === "gespeichert") toast("Datei in Downloads gespeichert. In WhatsApp über die Büroklammer anhängen.");
+  else if (r === "geteilt") toast("Plan verschickt.");
+}
+function unterschiede(fremd) {
+  const tage = [...new Set([...Object.keys(D.plan), ...Object.keys(fremd.plan || {})])].sort(), u = [];
+  for (const t of tage) for (const p of D.personen) {
+    const a = (D.plan[t] || {})[p.id] || "", b = ((fremd.plan || {})[t] || {})[p.id] || "";
+    if (a !== b) u.push({ t, p, a, b });
+  }
+  return u;
+}
+function abgleichen(fremd, dateiname) {
+  const neu = !D;
+  if (neu) {
+    // Erstes Laden beim Kollegen: Plan ohne Stunden anlegen
+    D = { format: "mein-dienstplan", version: 1, rolle: "kollege", einstellungen: { grenze: 8, stundenNacht: fremd.einstellungen?.stundenNacht ?? 8, start: fremd.einstellungen?.start || Object.keys(fremd.plan).sort()[0].slice(0, 7) },
+      personen: fremd.personen.map(p => ({ ...p, std: 0, konto: false })), plan: fremd.plan };
+    speichern(); werBinIch(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true);
+    return toast("Plan von " + (fremd.von || "Kollege") + " geladen.");
+  }
+  // Der Kollege übernimmt Namen, Kürzel und Farben immer vom Planer
+  if (kollege() && fremd.rolle === "planer") {
+    D.personen = fremd.personen.map(p => ({ ...p, std: 0, konto: false }));
+    if (fremd.einstellungen?.start) D.einstellungen.start = fremd.einstellungen.start;
+    _speichern();
+  }
+  const u = unterschiede(fremd), von = fremd.von || "Kollege";
+  if (!u.length) { zeichnen(); return toast("Kein Unterschied: Dein Plan und der von " + von + " sind gleich."); }
+  const zeile = (x, i) => { const d = ausIso(x.t);
+    return `<tr><td><input type="checkbox" data-i="${i}" checked style="width:22px;height:22px"></td><td class="dat" style="width:auto">${WT[d.getDay()]} ${kurzDat(d)}${String(d.getFullYear()).slice(2)}</td>
+      <td><span class="pname" style="background:${farbe(x.p)}">${esc(x.p.ruf)}</span></td><td>${esc(x.a || "–")}</td><td><b>${esc(x.b || "–")}</b></td></tr>`; };
+  dialog(`<div class="dlg-kopf"><span>Abgleich mit ${esc(von)}</span><button data-x>✕</button></div>
+    <p class="klein">Plan von <b>${esc(von)}</b>, geändert am ${zeitText(fremd.stand)}. Dein Stand: ${zeitText(D.letzteAenderung)}.<br>${u.length} ${u.length === 1 ? "Eintrag ist" : "Einträge sind"} anders:</p>
+    <table><thead><tr><th style="width:34px;top:0"></th><th style="top:0">Tag</th><th style="top:0">Person</th><th style="top:0">bei dir</th><th style="top:0">bei ${esc(von)}</th></tr></thead><tbody>${u.map(zeile).join("")}</tbody></table>
+    <div class="menue" style="margin-top:12px"><button class="haupt" id="aAlle">Alles von ${esc(von)} übernehmen</button>
+    <button id="aEinz">Nur angehakte übernehmen</button><button id="aMein">Meinen behalten</button></div>`, (el, zu) => {
+    el.querySelector("[data-x]").onclick = zu;
+    const uebernehmen = liste => {
+      try { localStorage.setItem(SPEICHER + "-vor-abgleich", JSON.stringify(D)); } catch (e) {}
+      merken(); for (const x of liste) setzen(ausIso(x.t), x.p.id, x.b); speichern(); zu();
+      toast(liste.length + (liste.length === 1 ? " Änderung" : " Änderungen") + " von " + von + " übernommen. Rückgängig im Menü.");
+    };
+    el.querySelector("#aAlle").onclick = () => uebernehmen(u);
+    el.querySelector("#aEinz").onclick = () => uebernehmen([...el.querySelectorAll("input[data-i]:checked")].map(c => u[+c.dataset.i]));
+    el.querySelector("#aMein").onclick = () => { zu(); if (confirm("Deinen Plan jetzt an " + von + " zurückschicken? Dann wird seiner auf deinen Stand gebracht.")) planSenden(); };
+  });
+}
+async function dateiVerarbeiten(text, dateiname) {
+  try { let roh; try { roh = JSON.parse(text); } catch (x) { throw new Error("„" + dateiname + "“ ist keine Dienstplan-Datei. Bitte eine Datei dienstplan-von-….txt oder eine Sicherung wählen."); }
+    if (roh && roh.format === "mein-dienstplan" && roh.art === "abgleich" && Array.isArray(roh.personen) && roh.plan) return abgleichen(roh, dateiname);
+    const o = pruefeDatei(roh);
+    if (D && !confirm("Den Plan auf diesem Handy durch die Datei „" + dateiname + "“ ersetzen?\nDer jetzige Stand geht dabei verloren, wenn er nicht gesichert ist.")) return;
+    if (D) { o.ich = o.ich || D.ich; merken(); } D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
+  } catch (err) { alert("Die Datei ließ sich nicht laden: " + err.message); }
+}
 $("#datei").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-  try { let roh; try { roh = JSON.parse(await f.text()); } catch (x) { throw new Error("„" + f.name + "“ ist keine Dienstplan-Datei. Bitte dienstplan-start.json oder eine Sicherung wählen."); }
-    const o = pruefeDatei(roh);
-    if (D && !confirm("Den Plan auf diesem Handy durch die Datei „" + f.name + "“ ersetzen?\nDer jetzige Stand geht dabei verloren, wenn er nicht gesichert ist.")) return;
-    if (D) merken(); D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
-  } catch (err) { alert("Die Datei ließ sich nicht laden: " + err.message); }
+  dateiVerarbeiten(await f.text(), f.name);
 };
+// Android: Datei kam über „Teilen → Dienstplan“ (der Service Worker hat sie zwischengelegt)
+async function geteilteDateiHolen() {
+  if (!location.search.includes("empfang") || !("caches" in window)) return;
+  history.replaceState(null, "", location.pathname);
+  try { const c = await caches.open("dienstplan-empfang"), r = await c.match("./empfangen-datei"); if (!r) return;
+    const name = decodeURIComponent(r.headers.get("X-Dateiname") || "geteilte%20Datei"); const t = await r.text(); await c.delete("./empfangen-datei"); dateiVerarbeiten(t, name);
+  } catch (e) { toast("Die geteilte Datei ließ sich nicht öffnen."); }
+}
 /* jede Änderung mit Zeitstempel */
 const _speichern = speichern; speichern = function () { if (D) D.letzteAenderung = new Date().toISOString(); _speichern(); };
 
@@ -437,6 +522,7 @@ laden();
 { const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); }
 if (D) grenzen();
 zeichnen(true);
+geteilteDateiHolen();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");
-window.DP = { get daten() { return D; }, set daten(v) { D = pruefeDatei(v); speichern(); grenzen(); zeichnen(); }, monatsWerte, tagPruefung, urlaubJahr, feiertage, monatsBild, monatsText, kontoStand };
+window.DP = { get daten() { return D; }, set daten(v) { D = pruefeDatei(v); speichern(); grenzen(); zeichnen(); }, dateiVerarbeiten, abgleichDatei, unterschiede, monatsWerte, tagPruefung, urlaubJahr, feiertage, monatsBild, monatsText, kontoStand };
 </script></body></html>
