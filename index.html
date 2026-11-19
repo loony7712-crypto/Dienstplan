@@ -17,7 +17,7 @@ button:disabled{opacity:.45}
 input,select{font:inherit;font-size:17px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:var(--ink)}
 header{position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--line);padding:6px 8px;padding-top:max(6px,env(safe-area-inset-top))}
 .kopf{display:flex;align-items:center;gap:6px}
-.kopf h1{flex:1;text-align:center;font-size:19px;margin:0;white-space:nowrap}
+.kopf h1{flex:1;min-width:0;text-align:center;font-size:19px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kopf button{min-height:44px;min-width:44px;padding:4px 10px}
 .reiter{display:flex;gap:6px;margin-top:6px}.reiter button{flex:1;min-height:40px;padding:4px;font-size:15px}
 .reiter button.an{background:var(--accbg);border:2px solid var(--acc);color:var(--acc);font-weight:700}
@@ -82,7 +82,8 @@ const TOUREN = [1, 5, 8, 12];
 const FARBEN = ["#8ecae6", "#b5e48c", "#ffcf70", "#f4a6c6", "#c9b6e4", "#9be3d0", "#f7a072"];
 const farbe = p => p.farbe || FARBEN[D.personen.indexOf(p) % FARBEN.length];
 let D = null;                 // alle Daten
-let ansicht = "touren";       // touren | personen | stunden
+let ansicht = "touren";       // touren | woche | personen | stunden
+let wocheAb = null;           // Montag der angezeigten Woche (Spec 006)
 let jahr, monat;              // angezeigter Monat (monat 0–11)
 let rueck = [];               // Rückgängig-Stapel
 
@@ -136,7 +137,7 @@ const person = id => D.personen.find(p => p.id === id);
 const kollege = () => !!D && D.rolle === "kollege";
 // Spec 005: festes Auto (Kennzeichen) je Tour, steht in den Einstellungen
 const auto = t => ((D.einstellungen.autos || {})[t] || "").trim();
-const VERSION = 8;
+const VERSION = 9;
 // Ausgeschiedene Personen (p.bis = "JJJJ-MM") erscheinen nur bis zu diesem Monat
 const aktiv = (p, y, m) => !p.bis || (y + "-" + pad(m + 1)) <= p.bis;
 const leute = (y, m) => D.personen.filter(p => aktiv(p, y, m));
@@ -192,15 +193,35 @@ function warnungen(y, m) {
   return { w, fehlt, doppelt, werte };
 }
 
+/* ---------- Woche (Spec 006) ---------- */
+const montag = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
+const wochenTage = () => Array.from({ length: 7 }, (_, i) => { const x = new Date(wocheAb); x.setDate(x.getDate() + i); return x; });
+function kw(d) { const t = new Date(d.getFullYear(), d.getMonth(), d.getDate()); t.setDate(t.getDate() + 3 - (t.getDay() + 6) % 7); const w1 = new Date(t.getFullYear(), 0, 4);
+  return 1 + Math.round(((t - w1) / 864e5 - 3 + (w1.getDay() + 6) % 7) / 7); }
+function wochenTitel(ohneJahr) { const t = wochenTage(), a = t[0], b = t[6];
+  return "KW " + kw(a) + " · " + (a.getMonth() === b.getMonth() ? pad(a.getDate()) + ".–" : kurzDat(a) + "–") + kurzDat(b) + (ohneJahr ? "" : b.getFullYear()); }
+function wocheSetzen(d) { wocheAb = montag(d); const do_ = new Date(wocheAb); do_.setDate(do_.getDate() + 3); jahr = do_.getFullYear(); monat = do_.getMonth(); }
+function wocheBlaettern(n) {
+  const neu = new Date(wocheAb); neu.setDate(neu.getDate() + 7 * n); const ende = new Date(neu); ende.setDate(ende.getDate() + 6);
+  const s = D.einstellungen.anzeigeAb && D.einstellungen.anzeigeAb < D.einstellungen.start ? D.einstellungen.anzeigeAb : D.einstellungen.start;
+  if (iso(ende).slice(0, 7) < s) return toast("Früher gibt es keinen Plan.");
+  wocheSetzen(neu); zeichnen();
+}
+function wochenWarnung(tage) { let f = 0, dp = 0; for (const d of tage) { const t = tagPruefung(d); if (t.fehlt.length) f++; if (t.doppelt.length) dp++; }
+  const w = []; if (f) w.push(f + (f === 1 ? " Nacht: Tour fehlt" : " Nächte: Tour fehlt")); if (dp) w.push(dp + (dp === 1 ? " Nacht: Tour doppelt" : " Nächte: Tour doppelt")); return { w }; }
+
 /* ---------- Zeichnen ---------- */
 function kopfZeichnen() {
-  $("#kopf").innerHTML = `<div class="kopf"><button id="vor" aria-label="Monat zurück">‹</button><h1>${MONATE[monat]} ${jahr}</h1><button id="nach" aria-label="Monat vor">›</button>
+  const woche = ansicht === "woche";
+  $("#kopf").innerHTML = `<div class="kopf"><button id="vor" aria-label="${woche ? "Woche" : "Monat"} zurück">‹</button><h1>${woche ? "KW " + kw(wocheAb) + `<small style="display:block;font-size:13px;font-weight:500;color:var(--mut)">${wochenTitel(true).split(" · ")[1]}</small>` : MONATE[monat] + " " + jahr}</h1><button id="nach" aria-label="${woche ? "Woche" : "Monat"} vor">›</button>
     <button id="heute">Heute</button><button id="menue" aria-label="Menü">☰</button></div>
-    <div class="reiter">${[["touren", "Touren"], ["personen", "Personen"], ["stunden", "Stunden"]].filter(([k]) => !(kollege() && k === "stunden")).map(([k, t]) => `<button data-a="${k}" class="${ansicht === k ? "an" : ""}">${t}</button>`).join("")}</div>`;
-  $("#vor").onclick = () => blaettern(-1); $("#nach").onclick = () => blaettern(1);
-  $("#heute").onclick = () => { const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); };
+    <div class="reiter">${[["touren", "Touren"], ["woche", "Woche"], ["personen", "Personen"], ["stunden", "Stunden"]].filter(([k]) => !(kollege() && k === "stunden")).map(([k, t]) => `<button data-a="${k}" class="${ansicht === k ? "an" : ""}">${t}</button>`).join("")}</div>`;
+  $("#vor").onclick = () => woche ? wocheBlaettern(-1) : blaettern(-1); $("#nach").onclick = () => woche ? wocheBlaettern(1) : blaettern(1);
+  $("#heute").onclick = () => { const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); if (woche) wocheSetzen(h); zeichnen(true); };
   $("#menue").onclick = menue;
-  document.querySelectorAll(".reiter button").forEach(b => b.onclick = () => { ansicht = b.dataset.a; zeichnen(); });
+  document.querySelectorAll(".reiter button").forEach(b => b.onclick = () => {
+    if (b.dataset.a === "woche" && ansicht !== "woche") { const h = new Date(); wocheSetzen(h.getFullYear() === jahr && h.getMonth() === monat ? h : new Date(jahr, monat, 1)); }
+    ansicht = b.dataset.a; zeichnen(); });
   requestAnimationFrame(() => document.documentElement.style.setProperty("--kh", $("#kopf").offsetHeight + "px"));
 }
 function grenzen() { const s = D.einstellungen.anzeigeAb && D.einstellungen.anzeigeAb < D.einstellungen.start ? D.einstellungen.anzeigeAb : D.einstellungen.start; const sy = +s.slice(0, 4), sm = +s.slice(5, 7) - 1; if (jahr < sy || (jahr === sy && monat < sm)) { jahr = sy; monat = sm; } }
@@ -217,11 +238,12 @@ function zeichnen(zuHeute) {
   if (!D) return startSeite();
   if (kollege() && ansicht === "stunden") ansicht = "touren";
   kopfZeichnen();
-  const info = warnungen(jahr, monat);
+  if (ansicht === "woche" && !wocheAb) wocheSetzen(new Date());
+  const tage = ansicht === "woche" ? wochenTage() : tageImMonat(jahr, monat);
+  const info = ansicht === "woche" ? wochenWarnung(tage) : warnungen(jahr, monat);
   let h = hinweisLeiste(info);
   const heute = iso(new Date());
-  const tage = tageImMonat(jahr, monat);
-  if (ansicht === "touren") {
+  if (ansicht === "touren" || ansicht === "woche") {
     h += `<table><thead><tr><th style="width:80px">Tag</th>${TOUREN.map(t => `<th>Tour ${t}${auto(t) ? `<small class="kz">${esc(auto(t))}</small>` : ""}</th>`).join("")}</tr></thead><tbody>`;
     for (const d of tage) {
       const f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
@@ -406,12 +428,13 @@ async function teilenDatei(blob, name, titel) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   return "gespeichert";
 }
-function monatsBild(y, m) {
-  const mitAuto = TOUREN.some(auto), tage = tageImMonat(y, m), W = 1080, zh = 46, oben = mitAuto ? 178 : 150, hoehe = oben + tage.length * zh + 70;
+function monatsBild(y, m) { return planBild(tageImMonat(y, m), "Nachtschichtplan " + MONATE[m] + " " + y); }
+function planBild(tage, titel) {
+  const mitAuto = TOUREN.some(auto), W = 1080, zh = 46, oben = mitAuto ? 178 : 150, hoehe = oben + tage.length * zh + 70;
   const c = document.createElement("canvas"); c.width = W; c.height = hoehe; const g = c.getContext("2d");
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, hoehe);
-  g.fillStyle = "#1d2733"; g.font = "bold 46px Arial"; g.fillText("Nachtschichtplan " + MONATE[m] + " " + y, 30, 66);
+  g.fillStyle = "#1d2733"; g.font = "bold 46px Arial"; g.fillText(titel, 30, 66, W - 60);
   const sp = [30, 190, 400, 610, 820, 1050]; // Datum, T1, T5, T8, T12, Ende
   g.font = "bold 26px Arial"; g.fillStyle = "#5b6575"; g.fillText("Tag", sp[0] + 6, 128); TOUREN.forEach((t, i) => g.fillText("Tour " + t, sp[i + 1] + 12, 128));
   if (mitAuto) { g.font = "bold 22px Arial"; g.fillStyle = "#1d2733"; TOUREN.forEach((t, i) => g.fillText(auto(t), sp[i + 1] + 12, 158, sp[i + 2] - sp[i + 1] - 20)); }
@@ -434,20 +457,24 @@ function bereiche(tage) {
   for (let i = 1; i < tage.length; i++) { const d = tage[i]; if ((d - b) / 864e5 <= 2.1) { b = d; continue; } r.push(fmt(a, b)); a = d; b = d; }
   r.push(fmt(a, b)); return r.join(", ");
 }
+// Im Reiter „Woche“ wird die Woche verschickt, sonst der Monat
+const teilAuswahl = () => ansicht === "woche" ? { tage: wochenTage(), titel: "Nachtschichtplan " + wochenTitel(), datei: "Nachtschichtplan KW " + kw(wocheAb) + " " + wochenTage()[3].getFullYear() }
+  : { tage: tageImMonat(jahr, monat), titel: "Nachtschichtplan " + MONATE[monat] + " " + jahr, datei: "Nachtschichtplan " + MONATE[monat] + " " + jahr };
 async function bildTeilen() {
-  const c = monatsBild(jahr, monat);
-  c.toBlob(async b => { const r = await teilenDatei(b, "Nachtschichtplan " + MONATE[monat] + " " + jahr + ".png", "Nachtschichtplan " + MONATE[monat] + " " + jahr);
+  const a = teilAuswahl(), c = planBild(a.tage, a.titel);
+  c.toBlob(async b => { const r = await teilenDatei(b, a.datei + ".png", a.titel);
     if (r === "gespeichert") toast("Bild gespeichert. In WhatsApp über die Büroklammer anhängen."); }, "image/png");
 }
-function monatsText(y, m) {
-  const z = ["Nachtschichtplan " + MONATE[m] + " " + y]; if (autoZeile()) z.push("Autos: " + autoZeile()); z.push("");
-  for (const d of tageImMonat(y, m)) { if (!dienstnacht(d)) continue; const t = tagPruefung(d);
+function monatsText(y, m) { return planText(tageImMonat(y, m), "Nachtschichtplan " + MONATE[m] + " " + y); }
+function planText(tage, titel) {
+  const z = [titel]; if (autoZeile()) z.push("Autos: " + autoZeile()); z.push("");
+  for (const d of tage) { if (!dienstnacht(d)) continue; const t = tagPruefung(d);
     z.push(WT[d.getDay()] + " " + kurzDat(d) + " " + TOUREN.map(x => "T" + x + " " + (t.z[x].length ? t.z[x].map(p => p.ruf).join("/") : "fehlt")).join(" · ")); }
-  const ab = []; for (const p of D.personen) { const u = tageImMonat(y, m).filter(d => eintrag(d, p.id) === "U" && dienstnacht(d)); if (u.length) ab.push(p.ruf + " Urlaub " + bereiche(u)); }
+  const ab = []; for (const p of D.personen) { const u = tage.filter(d => eintrag(d, p.id) === "U" && dienstnacht(d)); if (u.length) ab.push(p.ruf + " Urlaub " + bereiche(u)); }
   if (ab.length) z.push("", ab.join("\n")); return z.join("\n");
 }
 async function textTeilen() {
-  const t = monatsText(jahr, monat);
+  const a = teilAuswahl(), t = planText(a.tage, a.titel);
   if (navigator.share) { try { await navigator.share({ text: t }); return; } catch (e) { if (e.name === "AbortError") return; } }
   location.href = "https://wa.me/?text=" + encodeURIComponent(t);
 }
@@ -571,5 +598,5 @@ if (D) grenzen();
 zeichnen(true);
 geteilteDateiHolen();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");
-window.DP = { get daten() { return D; }, set daten(v) { D = pruefeDatei(v); speichern(); grenzen(); zeichnen(); }, dateiVerarbeiten, abgleichDatei, unterschiede, monatsWerte, tagPruefung, urlaubJahr, feiertage, monatsBild, monatsText, kontoStand };
+window.DP = { get daten() { return D; }, set daten(v) { D = pruefeDatei(v); speichern(); grenzen(); zeichnen(); }, dateiVerarbeiten, abgleichDatei, unterschiede, monatsWerte, tagPruefung, urlaubJahr, feiertage, monatsBild, monatsText, kontoStand, planBild, planText, kw, wochenTitel, teilAuswahl };
 </script></body></html>
