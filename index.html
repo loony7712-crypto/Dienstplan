@@ -47,6 +47,7 @@ td.c{border-left:2px solid var(--bg)}
 .werte div{background:var(--bg);border-radius:8px;padding:6px 2px}.werte b{display:block;font-size:18px}.werte span{font-size:12px;color:var(--mut)}
 .plus{color:var(--ok)}.minus{color:var(--rot)}
 .klein{font-size:14px;color:var(--mut)}
+th small.kz{display:block;font-size:11px;font-weight:700;color:var(--ink);letter-spacing:.2px}
 .unten{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);border-top:1px solid var(--line);padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom));display:flex;gap:8px}
 .unten button{min-height:56px}.unten .gruen{flex:1;font-size:18px}
 .dlg-bg{position:fixed;inset:0;background:rgba(20,30,40,.45);z-index:100;display:flex;align-items:flex-end;justify-content:center}
@@ -133,6 +134,9 @@ function setzen(d, pid, code) {
 const person = id => D.personen.find(p => p.id === id);
 // Spec 004: Auf dem Handy des Kollegen gibt es keine Stunden, kein Konto, keinen Urlaub und keine Einstellungen
 const kollege = () => !!D && D.rolle === "kollege";
+// Spec 005: festes Auto (Kennzeichen) je Tour, steht in den Einstellungen
+const auto = t => ((D.einstellungen.autos || {})[t] || "").trim();
+const autoZeile = () => TOUREN.filter(auto).map(t => "T" + t + " " + auto(t)).join(" · ");
 function tourVon(p, code) { if (!code || code[0] !== "N") return 0; return (p.touren || {})[code] || 0; }
 function klasse(p, code) { if (!code) return "F"; if (code === "U" || code === "K" || code === "F") return code; const t = tourVon(p, code); return t ? "T" + t : ""; }
 
@@ -213,7 +217,7 @@ function zeichnen(zuHeute) {
   const heute = iso(new Date());
   const tage = tageImMonat(jahr, monat);
   if (ansicht === "touren") {
-    h += `<table><thead><tr><th style="width:80px">Tag</th>${TOUREN.map(t => `<th>Tour ${t}</th>`).join("")}</tr></thead><tbody>`;
+    h += `<table><thead><tr><th style="width:80px">Tag</th>${TOUREN.map(t => `<th>Tour ${t}${auto(t) ? `<small class="kz">${esc(auto(t))}</small>` : ""}</th>`).join("")}</tr></thead><tbody>`;
     for (const d of tage) {
       const f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
       const abw = D.personen.filter(p => ["U", "K"].includes(eintrag(d, p.id))).map(p => eintrag(d, p.id) + " " + p.ruf);
@@ -281,8 +285,9 @@ function codeKnoepfe(p, d, wahl) {
 function tagStatus(d) {
   if (!dienstnacht(d)) return `<div class="status" style="background:var(--frei)">${esc(feiertag(d) || "Sonntag")}: keine Dienstnacht</div>`;
   const t = tagPruefung(d);
-  if (!t.fehlt.length && !t.doppelt.length) return `<div class="status" style="background:var(--okbg);color:var(--ok)">✓ Alle 4 Touren besetzt</div>`;
-  return `<div class="status" style="background:var(--rotbg);color:var(--rot)">${t.fehlt.length ? "Fehlt: Tour " + t.fehlt.join(", ") + ". " : ""}${t.doppelt.length ? "Doppelt: Tour " + t.doppelt.join(", ") + "." : ""}</div>`;
+  const autos = autoZeile() ? `<div class="klein" style="margin:-4px 0 8px">🚐 ${esc(autoZeile())}</div>` : "";
+  if (!t.fehlt.length && !t.doppelt.length) return `<div class="status" style="background:var(--okbg);color:var(--ok)">✓ Alle 4 Touren besetzt</div>` + autos;
+  return `<div class="status" style="background:var(--rotbg);color:var(--rot)">${t.fehlt.length ? "Fehlt: Tour " + t.fehlt.join(", ") + ". " : ""}${t.doppelt.length ? "Doppelt: Tour " + t.doppelt.join(", ") + "." : ""}</div>` + autos;
 }
 function tagDialog(d) {
   const inhalt = () => `<div class="dlg-kopf"><button data-n="-1">‹</button><span>${WT[d.getDay()]} ${kurzDat(d)}${d.getFullYear()}</span><button data-n="1">›</button><button data-x>✕</button></div>${tagStatus(d)}
@@ -336,6 +341,7 @@ function einstellungenDialog() {
       <div class="zwei"><label class="feld">Wochenstunden<input data-f="std" type="number" inputmode="decimal" value="${p.std}"></label>
       ${p.konto ? `<label class="feld">Konto Start (Std.)<input data-f="kontoStart" type="number" inputmode="decimal" value="${p.kontoStart || 0}"></label>` : `<span></span>`}</div>
       <div class="zwei">${jahre.map(j => `<label class="feld">Urlaubstage ${j}${j === sy ? " (Rest ab Start)" : ""}<input data-u="${j}" type="number" inputmode="numeric" value="${(p.urlaub || {})[j] ?? ""}"></label>`).join("")}</div></div>`).join("")}
+    <div class="karte"><h3><span>🚐 Autos je Tour</span></h3><div class="zwei">${TOUREN.map(t => `<label class="feld">Tour ${t}<input data-auto="${t}" value="${esc(auto(t))}" placeholder="Kennzeichen" autocapitalize="characters"></label>`).join("")}</div></div>
     <label class="feld">Hinweis, wenn das Konto höher ist als (Std.)<input id="grenze" type="number" value="${D.einstellungen.grenze}"></label>
     <div class="dlg-fuss"><button data-x>Abbrechen</button><button class="haupt" id="eok">Speichern</button></div>`, (el, zu) => {
     el.querySelectorAll("[data-x]").forEach(b => b.onclick = zu);
@@ -344,6 +350,7 @@ function einstellungenDialog() {
       el.querySelectorAll(".karte[data-p]").forEach(k => { const p = person(k.dataset.p);
         k.querySelectorAll("[data-f]").forEach(i => { const f = i.dataset.f; p[f] = (f === "std" || f === "kontoStart") ? (Number(String(i.value).replace(",", ".")) || 0) : i.value.trim(); });
         p.urlaub = p.urlaub || {}; k.querySelectorAll("[data-u]").forEach(i => { p.urlaub[i.dataset.u] = i.value === "" ? null : Number(i.value); }); });
+      D.einstellungen.autos = {}; el.querySelectorAll("[data-auto]").forEach(i => { const v = i.value.trim().toUpperCase(); if (v) D.einstellungen.autos[i.dataset.auto] = v; });
       D.einstellungen.grenze = Number(el.querySelector("#grenze").value) || 0; speichern(); zu(); toast("Gespeichert.");
     };
   });
@@ -379,13 +386,14 @@ async function teilenDatei(blob, name, titel) {
   return "gespeichert";
 }
 function monatsBild(y, m) {
-  const tage = tageImMonat(y, m), W = 1080, zh = 46, oben = 150, hoehe = oben + tage.length * zh + 70;
+  const mitAuto = TOUREN.some(auto), tage = tageImMonat(y, m), W = 1080, zh = 46, oben = mitAuto ? 178 : 150, hoehe = oben + tage.length * zh + 70;
   const c = document.createElement("canvas"); c.width = W; c.height = hoehe; const g = c.getContext("2d");
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, hoehe);
   g.fillStyle = "#1d2733"; g.font = "bold 46px Arial"; g.fillText("Nachtschichtplan " + MONATE[m] + " " + y, 30, 66);
   const sp = [30, 190, 400, 610, 820, 1050]; // Datum, T1, T5, T8, T12, Ende
   g.font = "bold 26px Arial"; g.fillStyle = "#5b6575"; g.fillText("Tag", sp[0] + 6, 128); TOUREN.forEach((t, i) => g.fillText("Tour " + t, sp[i + 1] + 12, 128));
+  if (mitAuto) { g.font = "bold 22px Arial"; g.fillStyle = "#1d2733"; TOUREN.forEach((t, i) => g.fillText(auto(t), sp[i + 1] + 12, 158, sp[i + 2] - sp[i + 1] - 20)); }
   tage.forEach((d, i) => {
     const yy = oben + i * zh, f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
     g.fillStyle = !dn ? (f ? css("--fei") : css("--frei")) : "#f6f7f9"; g.fillRect(sp[0], yy, sp[5] - sp[0], zh - 4);
@@ -411,7 +419,7 @@ async function bildTeilen() {
     if (r === "gespeichert") toast("Bild gespeichert. In WhatsApp über die Büroklammer anhängen."); }, "image/png");
 }
 function monatsText(y, m) {
-  const z = ["Nachtschichtplan " + MONATE[m] + " " + y, ""];
+  const z = ["Nachtschichtplan " + MONATE[m] + " " + y]; if (autoZeile()) z.push("Autos: " + autoZeile()); z.push("");
   for (const d of tageImMonat(y, m)) { if (!dienstnacht(d)) continue; const t = tagPruefung(d);
     z.push(WT[d.getDay()] + " " + kurzDat(d) + " " + TOUREN.map(x => "T" + x + " " + (t.z[x].length ? t.z[x].map(p => p.ruf).join("/") : "fehlt")).join(" · ")); }
   const ab = []; for (const p of D.personen) { const u = tageImMonat(y, m).filter(d => eintrag(d, p.id) === "U" && dienstnacht(d)); if (u.length) ab.push(p.ruf + " Urlaub " + bereiche(u)); }
@@ -440,7 +448,7 @@ function werBinIch(aendern) {
 // Datei für den Kollegen: nur Plan und Personen ohne Stunden, Konto und Urlaub
 function abgleichDatei() {
   return { format: "mein-dienstplan", version: 1, art: "abgleich", von: D.ich || "", rolle: kollege() ? "kollege" : "planer", stand: D.letzteAenderung || new Date().toISOString(),
-    einstellungen: { start: D.einstellungen.start, stundenNacht: D.einstellungen.stundenNacht },
+    einstellungen: { start: D.einstellungen.start, stundenNacht: D.einstellungen.stundenNacht, autos: D.einstellungen.autos || {} },
     personen: D.personen.map(p => ({ id: p.id, name: p.name, ruf: p.ruf, codes: p.codes, touren: p.touren, farbe: farbe(p) })), plan: D.plan };
 }
 async function planSenden() {
@@ -462,7 +470,7 @@ function abgleichen(fremd, dateiname) {
   const neu = !D;
   if (neu) {
     // Erstes Laden beim Kollegen: Plan ohne Stunden anlegen
-    D = { format: "mein-dienstplan", version: 1, rolle: "kollege", einstellungen: { grenze: 8, stundenNacht: fremd.einstellungen?.stundenNacht ?? 8, start: fremd.einstellungen?.start || Object.keys(fremd.plan).sort()[0].slice(0, 7) },
+    D = { format: "mein-dienstplan", version: 1, rolle: "kollege", einstellungen: { grenze: 8, stundenNacht: fremd.einstellungen?.stundenNacht ?? 8, start: fremd.einstellungen?.start || Object.keys(fremd.plan).sort()[0].slice(0, 7), autos: fremd.einstellungen?.autos || {} },
       personen: fremd.personen.map(p => ({ ...p, std: 0, konto: false })), plan: fremd.plan };
     speichern(); werBinIch(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true);
     return toast("Plan von " + (fremd.von || "Kollege") + " geladen.");
@@ -471,6 +479,7 @@ function abgleichen(fremd, dateiname) {
   if (kollege() && fremd.rolle === "planer") {
     D.personen = fremd.personen.map(p => ({ ...p, std: 0, konto: false }));
     if (fremd.einstellungen?.start) D.einstellungen.start = fremd.einstellungen.start;
+    if (fremd.einstellungen?.autos) D.einstellungen.autos = fremd.einstellungen.autos;
     _speichern();
   }
   const u = unterschiede(fremd), von = fremd.von || "Kollege";
