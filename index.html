@@ -136,6 +136,10 @@ const person = id => D.personen.find(p => p.id === id);
 const kollege = () => !!D && D.rolle === "kollege";
 // Spec 005: festes Auto (Kennzeichen) je Tour, steht in den Einstellungen
 const auto = t => ((D.einstellungen.autos || {})[t] || "").trim();
+const VERSION = 7;
+// Ausgeschiedene Personen (p.bis = "JJJJ-MM") erscheinen nur bis zu diesem Monat
+const aktiv = (p, y, m) => !p.bis || (y + "-" + pad(m + 1)) <= p.bis;
+const leute = (y, m) => D.personen.filter(p => aktiv(p, y, m));
 const autoZeile = () => TOUREN.filter(auto).map(t => "T" + t + " " + auto(t)).join(" · ");
 function tourVon(p, code) { if (!code || code[0] !== "N") return 0; return (p.touren || {})[code] || 0; }
 function klasse(p, code) { if (!code) return "F"; if (code === "U" || code === "K" || code === "F") return code; const t = tourVon(p, code); return t ? "T" + t : ""; }
@@ -150,7 +154,7 @@ function tagPruefung(d) {
 function monatsWerte(y, m) {
   const tage = tageImMonat(y, m), hn = D.einstellungen.stundenNacht;
   const werk = tage.filter(werktag).length;
-  return D.personen.map(p => {
+  return leute(y, m).map(p => {
     const proTag = p.std / 5; let n = 0, uk = 0, u = 0, k = 0;
     for (const d of tage) { const c = eintrag(d, p.id); if (c && c[0] === "N") n++; if ((c === "U" || c === "K") && werktag(d)) uk++; if (c === "U") u++; if (c === "K") k++; }
     const soll = werk * proTag, ist = n * hn + uk * proTag, diff = ist - soll;
@@ -170,7 +174,8 @@ function kontoStand(p, y, m) {
 function urlaubJahr(p, y) {
   const sy = Number(D.einstellungen.start.slice(0, 4)); let rest = 0, angegeben = false, gen = 0;
   for (let j = sy; j <= y; j++) {
-    gen = 0; for (let m = 0; m < 12; m++) for (const d of tageImMonat(j, m)) if (eintrag(d, p.id) === "U" && dienstnacht(d)) gen++;
+    // Tage vor dem Start (z. B. nachgetragener November) zählen nicht, die Urlaubstage gelten ab Start
+    gen = 0; for (let m = 0; m < 12; m++) for (const d of tageImMonat(j, m)) if (iso(d) >= D.einstellungen.start && eintrag(d, p.id) === "U" && dienstnacht(d)) gen++;
     const a = (p.urlaub || {})[j]; if (a !== null && a !== undefined && a !== "") angegeben = true;
     rest = rest + (Number(a) || 0) - gen;
   }
@@ -198,7 +203,7 @@ function kopfZeichnen() {
   document.querySelectorAll(".reiter button").forEach(b => b.onclick = () => { ansicht = b.dataset.a; zeichnen(); });
   requestAnimationFrame(() => document.documentElement.style.setProperty("--kh", $("#kopf").offsetHeight + "px"));
 }
-function grenzen() { const s = D.einstellungen.start; const sy = +s.slice(0, 4), sm = +s.slice(5, 7) - 1; if (jahr < sy || (jahr === sy && monat < sm)) { jahr = sy; monat = sm; } }
+function grenzen() { const s = D.einstellungen.anzeigeAb && D.einstellungen.anzeigeAb < D.einstellungen.start ? D.einstellungen.anzeigeAb : D.einstellungen.start; const sy = +s.slice(0, 4), sm = +s.slice(5, 7) - 1; if (jahr < sy || (jahr === sy && monat < sm)) { jahr = sy; monat = sm; } }
 function blaettern(n) { monat += n; if (monat < 0) { monat = 11; jahr--; } if (monat > 11) { monat = 0; jahr++; } grenzen(); zeichnen(); }
 function hinweisLeiste(info) {
   let h = "";
@@ -231,12 +236,13 @@ function zeichnen(zuHeute) {
     }
     h += `</tbody></table><p class="klein">Tippe auf einen Tag, um ihn zu ändern.</p>`;
   } else if (ansicht === "personen") {
-    h += `<table><thead><tr><th style="width:80px">Tag</th>${D.personen.map(p => `<th><span class="pname" style="background:${farbe(p)}">${esc(p.ruf)}</span></th>`).join("")}</tr></thead><tbody>`;
+    const lp = leute(jahr, monat);
+    h += `<table><thead><tr><th style="width:80px">Tag</th>${lp.map(p => `<th><span class="pname" style="background:${farbe(p)}">${esc(p.ruf)}</span></th>`).join("")}</tr></thead><tbody>`;
     for (const d of tage) {
       const f = feiertag(d), dn = dienstnacht(d), t = tagPruefung(d);
       const kl = ["zeile", iso(d) === heute ? "heute" : "", !dn ? (f ? "fei" : "frei") : "", t.fehlt.length || t.doppelt.length ? "falsch" : ""].join(" ");
       h += `<tr class="${kl}" data-tag="${iso(d)}"><td class="dat">${WT[d.getDay()]} ${kurzDat(d)}${f ? `<small>${esc(f)}</small>` : ""}</td>`;
-      for (const p of D.personen) { const c = eintrag(d, p.id), dienst = c && c[0] === "N";
+      for (const p of lp) { const c = eintrag(d, p.id), dienst = c && c[0] === "N";
         h += `<td class="c ${dienst ? "" : dn || c ? klasse(p, c) : ""}" ${dienst ? `style="background:${farbe(p)}"` : ""} data-p="${p.id}">${esc(c || (dn ? "–" : ""))}</td>`; }
       h += `</tr>`;
     }
@@ -291,7 +297,7 @@ function tagStatus(d) {
 }
 function tagDialog(d) {
   const inhalt = () => `<div class="dlg-kopf"><button data-n="-1">‹</button><span>${WT[d.getDay()]} ${kurzDat(d)}${d.getFullYear()}</span><button data-n="1">›</button><button data-x>✕</button></div>${tagStatus(d)}
-    ${D.personen.map(p => `<div class="pers" data-p="${p.id}"><div class="n"><span><i class="punkt" style="background:${farbe(p)}"></i>${esc(p.ruf)}</span><span class="klein">${esc(p.name)}</span></div>${codeKnoepfe(p, d)}</div>`).join("")}
+    ${leute(d.getFullYear(), d.getMonth()).map(p => `<div class="pers" data-p="${p.id}"><div class="n"><span><i class="punkt" style="background:${farbe(p)}"></i>${esc(p.ruf)}</span><span class="klein">${esc(p.name)}</span></div>${codeKnoepfe(p, d)}</div>`).join("")}
     <div class="dlg-fuss"><button class="haupt" data-x>Fertig</button></div>`;
   dialog("", (el, zu) => {
     const neu = () => { el.innerHTML = inhalt(); binden(); };
@@ -315,7 +321,7 @@ function feldWahl(d, pid) {
 function zeitraumDialog() {
   const h = iso(new Date());
   dialog(`<div class="dlg-kopf"><span>Zeitraum eintragen</span><button data-x>✕</button></div>
-    <label class="feld">Person<select id="zp">${D.personen.map(p => `<option value="${p.id}">${esc(p.ruf)} (${esc(p.name)})</option>`).join("")}</select></label>
+    <label class="feld">Person<select id="zp">${D.personen.filter(p => !p.bis).map(p => `<option value="${p.id}">${esc(p.ruf)} (${esc(p.name)})</option>`).join("")}</select></label>
     <div class="zwei"><label class="feld">von<input type="date" id="zv" value="${h}"></label><label class="feld">bis<input type="date" id="zb" value="${h}"></label></div>
     <label class="feld">Eintrag<select id="zc"></select></label>
     <label class="klein" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" id="zs" checked style="width:auto"> Sonntage und Feiertage auslassen</label>
@@ -335,7 +341,7 @@ function zeitraumDialog() {
 function einstellungenDialog() {
   const sy = Number(D.einstellungen.start.slice(0, 4)), jahre = []; for (let j = sy; j <= Math.max(new Date().getFullYear() + 1, jahr); j++) jahre.push(j);
   dialog(`<div class="dlg-kopf"><span>Einstellungen</span><button data-x>✕</button></div>
-    ${D.personen.map(p => `<div class="karte" data-p="${p.id}"><h3><span>${esc(p.ruf)}</span><span class="klein">${p.codes.join(", ")}</span></h3>
+    ${D.personen.filter(p => !p.bis).map(p => `<div class="karte" data-p="${p.id}"><h3><span>${esc(p.ruf)}</span><span class="klein">${p.codes.join(", ")}</span></h3>
       <div class="zwei"><label class="feld">Name<input data-f="name" value="${esc(p.name)}"></label><label class="feld">Rufname (im Plan)<input data-f="ruf" value="${esc(p.ruf)}"></label></div>
       <label class="feld">Farbe im Plan<input data-f="farbe" type="color" value="${farbe(p)}" style="height:46px;padding:4px"></label>
       <div class="zwei"><label class="feld">Wochenstunden<input data-f="std" type="number" inputmode="decimal" value="${p.std}"></label>
@@ -355,10 +361,22 @@ function einstellungenDialog() {
     };
   });
 }
+function autosDialog() {
+  dialog(`<div class="dlg-kopf"><span>🚐 Autos je Tour</span><button data-x>✕</button></div>
+    <p class="klein">Das Kennzeichen steht dann im Tourenplan, im Tagesfenster, im WhatsApp-Bild und im Text.</p>
+    ${TOUREN.map(t => `<label class="feld">Tour ${t}<input data-auto="${t}" value="${esc(auto(t))}" placeholder="z. B. AB-CD 123" autocapitalize="characters"></label>`).join("")}
+    <div class="dlg-fuss"><button data-x>Abbrechen</button><button class="haupt" id="aok">Speichern</button></div>`, (el, zu) => {
+    el.querySelectorAll("[data-x]").forEach(b => b.onclick = zu);
+    el.querySelector("#aok").onclick = () => { merken(); D.einstellungen.autos = {};
+      el.querySelectorAll("[data-auto]").forEach(i => { const v = i.value.trim().toUpperCase(); if (v) D.einstellungen.autos[i.dataset.auto] = v; });
+      speichern(); zu(); toast("Autos gespeichert."); };
+  });
+}
 function menue() {
   dialog(`<div class="dlg-kopf"><span>Menü</span><button data-x>✕</button></div><div class="menue">
     <button data-m="zeit">📅 Zeitraum eintragen (z. B. Urlaub)</button>
     <button data-m="rueck" ${rueck.length ? "" : "disabled"}>↩ Letzte Änderung rückgängig</button>
+    ${kollege() ? "" : `<button data-m="autos">🚐 Autos je Tour</button>`}
     <button data-m="senden">📤 Plan an Kollegen schicken</button>
     <button data-m="empf">📥 Plan von Kollegen laden</button>
     <button data-m="sich">💾 Sicherung speichern (dann „In Drive speichern“ wählen)</button>
@@ -366,12 +384,12 @@ function menue() {
     ${kollege() ? "" : `<button data-m="einst">⚙ Einstellungen (Namen, Stunden, Urlaubstage)</button>`}
     <button data-m="ich">👤 Ich bin: ${esc(D.ich || "noch nicht eingetragen")}</button>
     <button data-m="anl">❔ Anleitung</button></div>
-    <p class="klein">Stand: ${D.letzteAenderung ? new Date(D.letzteAenderung).toLocaleString("de-DE") : "–"} · Letzte Sicherung: ${D.letzteSicherung ? new Date(D.letzteSicherung).toLocaleString("de-DE") : "noch keine"}${kollege() ? " · Namen und Stunden pflegt der Planer." : ""}</p>`, (el, zu) => {
+    <p class="klein">Stand: ${D.letzteAenderung ? new Date(D.letzteAenderung).toLocaleString("de-DE") : "–"} · Letzte Sicherung: ${D.letzteSicherung ? new Date(D.letzteSicherung).toLocaleString("de-DE") : "noch keine"}${kollege() ? " · Namen und Stunden pflegt der Planer." : ""} · App-Version ${VERSION}</p>`, (el, zu) => {
     el.querySelector("[data-x]").onclick = zu;
     el.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; el.parentElement.remove();
       if (m === "zeit") zeitraumDialog(); else if (m === "rueck") rueckgaengig(); else if (m === "sich") { zeichnen(); sichern(); }
       else if (m === "laden" || m === "empf") { zeichnen(); $("#datei").click(); } else if (m === "einst") einstellungenDialog();
-      else if (m === "senden") { zeichnen(); planSenden(); } else if (m === "ich") { zeichnen(); werBinIch(true); }
+      else if (m === "senden") { zeichnen(); planSenden(); } else if (m === "autos") autosDialog(); else if (m === "ich") { zeichnen(); werBinIch(true); }
       else if (m === "anl") location.href = "anleitung.html"; });
   });
 }
@@ -448,8 +466,8 @@ function werBinIch(aendern) {
 // Datei für den Kollegen: nur Plan und Personen ohne Stunden, Konto und Urlaub
 function abgleichDatei() {
   return { format: "mein-dienstplan", version: 1, art: "abgleich", von: D.ich || "", rolle: kollege() ? "kollege" : "planer", stand: D.letzteAenderung || new Date().toISOString(),
-    einstellungen: { start: D.einstellungen.start, stundenNacht: D.einstellungen.stundenNacht, autos: D.einstellungen.autos || {} },
-    personen: D.personen.map(p => ({ id: p.id, name: p.name, ruf: p.ruf, codes: p.codes, touren: p.touren, farbe: farbe(p) })), plan: D.plan };
+    einstellungen: { start: D.einstellungen.start, anzeigeAb: D.einstellungen.anzeigeAb, stundenNacht: D.einstellungen.stundenNacht, autos: D.einstellungen.autos || {} },
+    personen: D.personen.map(p => ({ id: p.id, name: p.name, ruf: p.ruf, codes: p.codes, touren: p.touren, farbe: farbe(p), bis: p.bis })), plan: D.plan };
 }
 async function planSenden() {
   if (!werBinIch()) return toast("Bitte zuerst eintragen, wer du bist.");
@@ -458,8 +476,8 @@ async function planSenden() {
   if (r === "gespeichert") toast("Datei in Downloads gespeichert. In WhatsApp über die Büroklammer anhängen.");
   else if (r === "geteilt") toast("Plan verschickt.");
 }
-function unterschiede(fremd) {
-  const tage = [...new Set([...Object.keys(D.plan), ...Object.keys(fremd.plan || {})])].sort(), u = [];
+function unterschiede(fremd, nurFremdeTage) {
+  const tage = (nurFremdeTage ? Object.keys(fremd.plan || {}) : [...new Set([...Object.keys(D.plan), ...Object.keys(fremd.plan || {})])]).sort(), u = [];
   for (const t of tage) for (const p of D.personen) {
     const a = (D.plan[t] || {})[p.id] || "", b = ((fremd.plan || {})[t] || {})[p.id] || "";
     if (a !== b) u.push({ t, p, a, b });
@@ -480,9 +498,17 @@ function abgleichen(fremd, dateiname) {
     D.personen = fremd.personen.map(p => ({ ...p, std: 0, konto: false }));
     if (fremd.einstellungen?.start) D.einstellungen.start = fremd.einstellungen.start;
     if (fremd.einstellungen?.autos) D.einstellungen.autos = fremd.einstellungen.autos;
+    D.einstellungen.anzeigeAb = fremd.einstellungen?.anzeigeAb;
     _speichern();
   }
-  const u = unterschiede(fremd), von = fremd.von || "Kollege";
+  // Nachtrag (z. B. ein früherer Monat): fehlende Personen ergänzen, Anzeige früher beginnen lassen, nur dessen Tage vergleichen
+  const nachtrag = fremd.art === "nachtrag" && !kollege();
+  if (nachtrag) {
+    for (const p of fremd.personen) if (!person(p.id)) D.personen.push({ ...p, std: p.std ?? 40, konto: false });
+    const ab = fremd.einstellungen?.anzeigeAb; if (ab && ab < (D.einstellungen.anzeigeAb || D.einstellungen.start)) D.einstellungen.anzeigeAb = ab;
+    _speichern();
+  }
+  const u = unterschiede(fremd, nachtrag), von = fremd.von || "Kollege";
   if (!u.length) { zeichnen(); return toast("Kein Unterschied: Dein Plan und der von " + von + " sind gleich."); }
   const zeile = (x, i) => { const d = ausIso(x.t);
     return `<tr><td><input type="checkbox" data-i="${i}" checked style="width:22px;height:22px"></td><td class="dat" style="width:auto">${WT[d.getDay()]} ${kurzDat(d)}${String(d.getFullYear()).slice(2)}</td>
@@ -505,7 +531,9 @@ function abgleichen(fremd, dateiname) {
 }
 async function dateiVerarbeiten(text, dateiname) {
   try { let roh; try { roh = JSON.parse(text); } catch (x) { throw new Error("„" + dateiname + "“ ist keine Dienstplan-Datei. Bitte eine Datei dienstplan-von-….txt oder eine Sicherung wählen."); }
-    if (roh && roh.format === "mein-dienstplan" && roh.art === "abgleich" && Array.isArray(roh.personen) && roh.plan) return abgleichen(roh, dateiname);
+    if (roh && roh.format === "mein-dienstplan" && (roh.art === "abgleich" || roh.art === "nachtrag") && Array.isArray(roh.personen) && roh.plan) {
+      if (roh.art === "nachtrag" && !D) throw new Error("Bitte zuerst den Plan laden, dann den Nachtrag.");
+      return abgleichen(roh, dateiname); }
     const o = pruefeDatei(roh);
     if (D && !confirm("Den Plan auf diesem Handy durch die Datei „" + dateiname + "“ ersetzen?\nDer jetzige Stand geht dabei verloren, wenn er nicht gesichert ist.")) return;
     if (D) { o.ich = o.ich || D.ich; merken(); } D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
