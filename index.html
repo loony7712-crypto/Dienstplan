@@ -136,7 +136,7 @@ const person = id => D.personen.find(p => p.id === id);
 const kollege = () => !!D && D.rolle === "kollege";
 // Spec 005: festes Auto (Kennzeichen) je Tour, steht in den Einstellungen
 const auto = t => ((D.einstellungen.autos || {})[t] || "").trim();
-const VERSION = 7;
+const VERSION = 8;
 // Ausgeschiedene Personen (p.bis = "JJJJ-MM") erscheinen nur bis zu diesem Monat
 const aktiv = (p, y, m) => !p.bis || (y + "-" + pad(m + 1)) <= p.bis;
 const leute = (y, m) => D.personen.filter(p => aktiv(p, y, m));
@@ -381,6 +381,7 @@ function menue() {
     <button data-m="empf">📥 Plan von Kollegen laden</button>
     <button data-m="sich">💾 Sicherung speichern (dann „In Drive speichern“ wählen)</button>
     <button data-m="laden">📂 Sicherung laden</button>
+    ${(() => { try { return localStorage.getItem(SPEICHER + "-vor-laden") ? `<button data-m="zurueck">⏪ Stand vor dem Laden zurückholen</button>` : ""; } catch (e) { return ""; } })()}
     ${kollege() ? "" : `<button data-m="einst">⚙ Einstellungen (Namen, Stunden, Urlaubstage)</button>`}
     <button data-m="ich">👤 Ich bin: ${esc(D.ich || "noch nicht eingetragen")}</button>
     <button data-m="anl">❔ Anleitung</button></div>
@@ -389,7 +390,9 @@ function menue() {
     el.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { const m = b.dataset.m; el.parentElement.remove();
       if (m === "zeit") zeitraumDialog(); else if (m === "rueck") rueckgaengig(); else if (m === "sich") { zeichnen(); sichern(); }
       else if (m === "laden" || m === "empf") { zeichnen(); $("#datei").click(); } else if (m === "einst") einstellungenDialog();
-      else if (m === "senden") { zeichnen(); planSenden(); } else if (m === "autos") autosDialog(); else if (m === "ich") { zeichnen(); werBinIch(true); }
+      else if (m === "senden") { zeichnen(); planSenden(); } else if (m === "autos") autosDialog();
+      else if (m === "zurueck") { zeichnen(); if (confirm("Den Stand von vor dem letzten Laden einer Datei zurückholen? Der jetzige Plan wird dadurch ersetzt.")) {
+        const alt = localStorage.getItem(SPEICHER + "-vor-laden"); merken(); localStorage.setItem(SPEICHER + "-vor-laden", JSON.stringify(D)); D = JSON.parse(alt); _speichern(); grenzen(); zeichnen(true); toast("Früherer Stand zurückgeholt."); } } else if (m === "ich") { zeichnen(); werBinIch(true); }
       else if (m === "anl") location.href = "anleitung.html"; });
   });
 }
@@ -531,12 +534,19 @@ function abgleichen(fremd, dateiname) {
 }
 async function dateiVerarbeiten(text, dateiname) {
   try { let roh; try { roh = JSON.parse(text); } catch (x) { throw new Error("„" + dateiname + "“ ist keine Dienstplan-Datei. Bitte eine Datei dienstplan-von-….txt oder eine Sicherung wählen."); }
+    // Nachtrag: neue Personen stehen unter „neuePersonen“, damit ältere App-Versionen die Datei ablehnen statt den Plan zu ersetzen
+    if (roh && roh.art === "nachtrag" && Array.isArray(roh.neuePersonen)) roh.personen = roh.neuePersonen;
     if (roh && roh.format === "mein-dienstplan" && (roh.art === "abgleich" || roh.art === "nachtrag") && Array.isArray(roh.personen) && roh.plan) {
       if (roh.art === "nachtrag" && !D) throw new Error("Bitte zuerst den Plan laden, dann den Nachtrag.");
       return abgleichen(roh, dateiname); }
     const o = pruefeDatei(roh);
-    if (D && !confirm("Den Plan auf diesem Handy durch die Datei „" + dateiname + "“ ersetzen?\nDer jetzige Stand geht dabei verloren, wenn er nicht gesichert ist.")) return;
-    if (D) { o.ich = o.ich || D.ich; merken(); } D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
+    if (D) {
+      const tage = Object.keys(o.plan).sort(), kurz = s => s ? s.split("-").reverse().join(".") : "–";
+      if (!confirm("Den ganzen Plan auf diesem Handy durch die Datei „" + dateiname + "“ ersetzen?\n\nIn der Datei: " + o.personen.length + " Personen (" + o.personen.map(p => p.ruf).join(", ") + "), Tage " + kurz(tage[0]) + " bis " + kurz(tage[tage.length - 1]) + ".\n\nDein jetziger Stand wird vorher im Handy abgelegt (Menü: „Stand vor dem Laden zurückholen“).")) return;
+      try { localStorage.setItem(SPEICHER + "-vor-laden", JSON.stringify(D)); } catch (e) {}
+      o.ich = o.ich || D.ich; merken();
+    }
+    D = o; D.letzteAenderung = new Date().toISOString(); speichern(); const h = new Date(); jahr = h.getFullYear(); monat = h.getMonth(); grenzen(); zeichnen(true); toast("Plan geladen.");
   } catch (err) { alert("Die Datei ließ sich nicht laden: " + err.message); }
 }
 $("#datei").onchange = async e => {
